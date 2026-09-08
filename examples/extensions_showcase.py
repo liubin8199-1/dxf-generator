@@ -15,7 +15,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "scripts"))
 
-from dxfkit import DxfBuilder
+from dxfkit import DxfBuilder, GBDxfBuilder
 import geomkit
 import archkit
 from budget import QuantityCalculator, BudgetGenerator, procurement_list
@@ -43,18 +43,20 @@ def p(tag, rep):
 print("=" * 68)
 print(" 1) geomkit 高级几何")
 print("=" * 68)
-b = DxfBuilder(style="mechanical")
+b = GBDxfBuilder(style="mechanical")
 geomkit.ellipse(b, 0, 0, 40, 20, 30)                                  # 椭圆（旋转30°）
 geomkit.gear(b, 120, 0, 30, 20, tooth_height=0.2)                     # 齿轮 Z=20 R30
 geomkit.gear(b, 220, 0, 45, 28, tooth_height=0.18)                    # 齿轮 Z=28 R45
 geomkit.spiral(b, 330, 0, 2, 40, turns=4)                             # 螺旋线
 geomkit.bezier(b, [(0, -90), (30, -30), (80, -70), (110, -90)])       # 贝塞尔 + 控制多边形
+b.add_gb_sheet()
 rep_geom = b.save(os.path.join(OUT, "geom_parts.dxf"))
 p("geom_parts", rep_geom)
 
 # 单个齿轮零件图（带对齐标注）
-b = DxfBuilder(style="mechanical")
+b = GBDxfBuilder(style="mechanical")
 geomkit.gear_part(b, 0, 0, pitch_radius=50, num_teeth=24)
+b.add_gb_sheet()
 rep_gear = b.save(os.path.join(OUT, "gear_part.dxf"))
 p("gear_part", rep_gear)
 
@@ -62,9 +64,10 @@ print("")
 print("=" * 68)
 print(" 2) archkit 建筑标准")
 print("=" * 68)
-b = DxfBuilder(style="architectural")
+b = GBDxfBuilder(style="architectural")
 archkit.residential_layout(b, width=12000, depth=8000,
                            title="标准层平面图 12.0m x 8.0m", elev=3.0)
+b.add_gb_sheet()
 rep_flat = b.save(os.path.join(OUT, "residential_12x8.dxf"))
 p("residential_12x8", rep_flat)
 _w = layer_extents(rep_flat["path"], "WALL")
@@ -72,22 +75,24 @@ print("      WALL 图层回读外包盒: %s" % ([round(v) for v in _w] if _w els
 print("      （双线墙以轴线为中心两侧各偏 t/2=120mm，故期望 [-120,-120,12120,8120]）")
 
 # 楼梯 + 柱梁 单独示意
-b = DxfBuilder(style="architectural")
+b = GBDxfBuilder(style="architectural")
 archkit.stair(b, 0, 0, width=1200, height=3000, steps=12)
 archkit.beam(b, 2000, 0, 8000, 0, width=250)
 archkit.column(b, 2000, 0, 400, 400)
 archkit.column(b, 8000, 0, 400, 400)
 archkit.elevation_mark(b, 8600, 0, 3.0)
 archkit.compass(b, 9500, 1500, 500)
+b.add_gb_sheet()
 rep_stair = b.save(os.path.join(OUT, "stair_beam.dxf"))
 p("stair_beam", rep_stair)
 
 # A3 图框 + 标题栏（纸张毫米，单独成图）
-b = DxfBuilder(style="architectural")
+b = GBDxfBuilder(style="architectural")
 archkit.border(b, "A3", margin=10)
 archkit.title_block(b, "A3", margin=10, data={
     "project": "15m 三层别墅", "drawing": "一层平面图",
     "scale": "1:100", "number": "J-01", "designer": "AI 辅助"})
+b.add_gb_sheet()
 rep_title = b.save(os.path.join(OUT, "title_A3.dxf"))
 p("title_A3", rep_title)
 print("      A3 图框尺寸应为 420x297 -> bbox=%s" %

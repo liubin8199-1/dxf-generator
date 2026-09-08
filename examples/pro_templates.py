@@ -14,7 +14,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "scripts"))
 
-from dxfkit import DxfBuilder
+from dxfkit import DxfBuilder, GBDxfBuilder
 import templates_arch as ta
 import templates_struct as ts
 import templates_mep as tm
@@ -24,8 +24,15 @@ os.makedirs(OUT, exist_ok=True)
 
 
 def emit(tag, fname, draw, style="architectural"):
-    b = DxfBuilder(style=style)
+    b = GBDxfBuilder(style=style)
     draw(b)
+    # v1.13.1：成品图统一套国标图框（审查要求 BORDER 层 + 标题栏）
+    if hasattr(b, "add_gb_sheet"):
+        b.add_gb_sheet(paper_size="A3", title_data={
+            "project": "专业模板示例", "title": tag, "scale": "1:100",
+            "drawing_no": "PRO-" + fname.split(".")[0].upper(),
+            "date": "2026", "designer": "dxf-generator",
+            "checker": "—", "approver": "—"})
     rep = b.save(os.path.join(OUT, fname))
     print("  %-14s %-26s 实体=%-4s 图层=%s"
           % (tag, fname, rep["entities"], sorted(rep["layers"].keys())))

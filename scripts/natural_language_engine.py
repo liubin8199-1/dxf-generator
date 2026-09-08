@@ -555,6 +555,14 @@ class NaturalLanguageGenerator:
             bathroom_detail(self.builder, BathroomParams(width=w, depth=d))
             return {'type': 'bathroom_detail', 'width_mm': w, 'depth_mm': d,
                     'note': '真模板：洁具+给排水支管+坡度+图例'}
+        elif '消火栓' in t:
+            # v1.13.1 修复：消火栓曾因'消防'非其子串而掉进排水分支
+            w = self._dim_mm(p, 0) or 12000
+            d = self._dim_mm(p, 1) or 8000
+            fire_fighting_plan(self.builder,
+                               FireFightingParams(width=w, depth=d,
+                                                  mode='hydrant'))
+            return {'type': 'fire_hydrant', 'width_mm': w, 'depth_mm': d}
         elif '消防' in t or '喷淋' in t:
             w = self._dim_mm(p, 0) or 12000
             d = self._dim_mm(p, 1) or 8000
@@ -740,13 +748,18 @@ def integrate_nl_to_builder(builder_class):
 
 
 def demo_natural_language(text: str, filename: str = 'nl_demo.dxf') -> Dict:
-    """一键跑通 NL → DXF 的最小示例（demo/外部脚本可直接调用）。"""
-    # 局部 import 避免循环
-    from dxfkit import DxfBuilder
-    builder = DxfBuilder(style='gb_architectural')
-    NLAwareBuilder = integrate_nl_to_builder(DxfBuilder)
-    aware = NLAwareBuilder(style='gb_architectural')
-    return aware.generate_from_text(text, filename)
+    """一键跑通 NL → DXF 的最小示例（demo/外部脚本可直接调用）。
+
+    v1.13.1 修复：旧版用 integrate_nl_to_builder(DxfBuilder) 这条**残缺链**，
+    没有 add_gb_sheet → 生成的是没有国标图框的裸图（审查必判 C 级）。
+    改用 dxfkit.NLAwareDxfBuilder（NL→Review→Code→GB 完整链）。
+    """
+    from dxfkit import DxfBuilder, NLAwareDxfBuilder
+    if NLAwareDxfBuilder is not None:
+        aware = NLAwareDxfBuilder(style='gb_architectural')
+    else:  # 兜底：手动拼完整链
+        aware = integrate_nl_to_builder(DxfBuilder)(style='gb_architectural')
+    return aware.generate_from_text(text, filename, add_sheet=True)
 
 
 __all__ = [

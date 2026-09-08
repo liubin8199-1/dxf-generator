@@ -10,6 +10,7 @@ examples/out_intf/
 examples/out_nl/
 examples/out_pro/
 examples/out_v113/
+examples/out_verify/
 
 # 二进制/导出文件
 *.png

@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.join(HERE, "..", "scripts"))
 
 import ezdxf
 from ezdxf import bbox as _bbox
-from dxfkit import batch, DxfBuilder
+from dxfkit import batch, DxfBuilder, GBDxfBuilder
 
 
 def layer_extents(path, layer):
@@ -95,10 +95,25 @@ def make_floor(b, spec):
     b.text("AI 辅助生成 · 施工前须经注册建筑/结构工程师复核", W / 2, -2300,
            h=300, layer="AUX", align="CENTER")
 
+    # v1.13.1：别墅每层成品图套国标图框（审查要求 BORDER 层 + 标题栏）
+    if hasattr(b, "add_gb_sheet"):
+        b.add_gb_sheet(paper_size="A3", title_data={
+            "project": "简欧别墅", "title": spec["label"], "scale": "1:100",
+            "drawing_no": "FL-" + spec["name"].upper(),
+            "date": "2026", "designer": "dxf-generator",
+            "checker": "—", "approver": "—"})
+
 
 def main():
     out = os.path.join(HERE, "out_floors")
-    results = batch(FLOORS, out, make_floor)
+    # v1.13.1：用 GBDxfBuilder（自带 add_gb_sheet）逐层成图，确保成品带国标图框
+    results = []
+    for i, spec in enumerate(FLOORS):
+        b = GBDxfBuilder(style=spec.get("style", "architectural"))
+        make_floor(b, spec)
+        name = spec.get("name", "floor_%03d" % i)
+        p = os.path.join(out, name + ".dxf")
+        results.append(b.save(p))
 
     print("=== 别墅三层独立成图（每层一个 DXF） ===")
     ok = True

@@ -98,6 +98,52 @@ def _legend(b, x, y, rows, h=200, sw=600):
     return yy
 
 
+def _fire_fighting_hydrant(b, p, x, y, W, D):
+    """消火栓系统/平面图：消防立管 + 消火栓箱（沿墙布置）+ 消防管 + 屋顶水箱 + 水泵接合器。
+
+    与喷淋模式区分：消火栓箱是箱体符号（非喷头网格），管径按 DN65/DN100。
+    """
+    # 消防立管（左侧竖向）
+    mx = x + 800
+    b.line(mx, y, mx, y + D, "P_FIRE")
+    b.add_circle(mx, y + D * 0.5, 230, "P_FIRE")
+    b.text("消防立管 %s" % p.main_dia, mx + 450, y + D * 0.5, h=200,
+           layer="P_TEXT")
+
+    # 屋顶水箱（顶部示意）
+    tw, th = 2200, 700
+    tx, ty = x + W * 0.6, y + D - th
+    b.add_rectangle(tx, ty, tw, th, "P_FIRE")
+    b.text("屋顶消防水箱", tx + tw + 360, ty + th * 0.3, h=190, layer="P_TEXT")
+    b.line(mx, ty + th, mx, y + D, "P_FIRE")  # 立管伸至水箱
+
+    # 消火栓箱：右侧墙沿竖向等距布置（间距按层高近似）
+    n = max(int(D // 3000), 2)
+    dy = D / (n + 1)
+    bw, bh = 600, 900          # 消火栓箱 600×900（明装）
+    for i in range(1, n + 1):
+        hy = y + dy * i
+        bx = x + W - 700
+        b.add_rectangle(bx, hy, bw, bh, "P_FIRE")
+        b.add_line(bx + bw * 0.5, hy, bx + bw * 0.5, hy + bh, "P_FIRE")
+        b.text("消火栓箱", bx + bw + 280, hy + bh * 0.35, h=180, layer="P_TEXT")
+        # 消防管：立管 → 消火栓箱（水平支管）
+        b.line(mx, hy + bh * 0.5, bx, hy + bh * 0.5, "P_FIRE")
+
+    # 水泵接合器（底部左侧）
+    px, py = x + 200, y - 1100
+    _valve(b, px, py, s=240, layer="P_FIRE")
+    b.text("水泵接合器 DN100", px + 560, py - 120, h=190, layer="P_TEXT")
+
+    b.text("消火栓系统图  立管 %s  支管 DN65  箱内配 SN65 水枪+25m 水带"
+           % p.main_dia, x, y - 1700, h=240, layer="P_TEXT")
+    b.text("屋顶水箱有效容积 ≥12m³，水泵接合器 1 套（两路供水）",
+           x, y - 2150, h=200, layer="P_TEXT")
+    _legend(b, x + W + 1000, y + D * 0.6,
+            [("P_FIRE", "消火栓箱及消防管")])
+    return b
+
+
 # ============================================================
 # 1. 卫生间大样
 # ============================================================
@@ -310,6 +356,7 @@ class FireFightingParams:
     spacing_y: float = 2600
     main_dia: str = "DN100"
     branch_dia: str = "DN25"
+    mode: str = "sprinkler"      # 'sprinkler' 喷淋 | 'hydrant' 消火栓
 
 
 def fire_fighting_plan(b, p: FireFightingParams, x=0, y=0):
@@ -319,7 +366,10 @@ def fire_fighting_plan(b, p: FireFightingParams, x=0, y=0):
     b.dim_h(0, x, x + W, "%.0f" % W, off=y - 600)
     b.dim_v(0, y, y + D, "%.0f" % D, off=x - 600)
 
-    # 喷头网格
+    if p.mode == "hydrant":
+        return _fire_fighting_hydrant(b, p, x, y, W, D)
+
+    # 喷头网格（默认喷淋模式）
     nx = max(int(W // p.spacing_x), 1)
     ny = max(int(D // p.spacing_y), 1)
     dx = W / (nx + 1)

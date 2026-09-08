@@ -2,7 +2,7 @@
 name: dxf-generator
 description: 用自然语言生成 DXF 矢量图纸的 Skill。封装 ezdxf 核心能力（文档/模型空间/图元/图层/保存/图纸空间），提供高层绘图库 dxfkit.py，让 Agent 把"画一个XX平面图/零件图/布置图/电气图"直接转成可打开的 .dxf 文件。无需安装 AutoCAD。支持五大功能：导入修改、参数化模板、批量处理、样式系统、自然语言分发；扩展模块含 geomkit 高级几何（齿轮/螺旋/贝塞尔）、archkit 建筑标准（轴网/双线墙/门窗/楼梯/图框/户型生成器）、budget 造价预算与采购清单、templates_arch 建筑专业（立面/剖面/节点大样/楼梯详图）、templates_struct 结构专业（钢筋符号/柱/板/基础/楼梯配筋）、templates_mep 机电专业（电气符号/电气图例/照明平面）；**GB/T 国标标准化**：gb_standards.py 提供 48 个国标图层、标准线型/线宽、符号/文字/图框标准与 GBDxfBuilder（A0~A4 图框+标题栏+1:100 视口，可直接出全套施工图）；**中文字体支持**：font_manager.py 自动注册 GB_CHINESE/GB_TITLE/GB_MULTILINE 样式（gbenor.shx + gbcbig.shx），所有含 CJK 的 TEXT/MTEXT 实体自动绑定中文样式，杜绝「中文显示为 ??」乱码；**施工说明模块**：construction_notes.py 按 GB 系列规范自动生成各专业施工说明（一般/土方/基础/主体/砌体/屋面/装饰/给排水/电气/暖通/消防/安全），一行 API 即可把说明写入图纸空间说明栏或模型空间；**施工规范引用模块**：construction_codes.py 内置 GB/JGJ 规范库 64 条×13 类，按图纸类型/专业自动匹配 强条/推荐/参考，CodeAwareDxfBuilder 一行把规范清单画进图纸空间或模型空间；**图纸管理全套**：drawing_management.py（图纸编号系统/目录/图签+会签栏/门窗表/材料做法表/结构设计说明/设备材料表/工程量清单 + CompleteDrawingManager 一键出全部表格）；**高级专业模板**：templates_advanced.py 十个模块——总平面图、防火分区·消防疏散图、空调系统图、防排烟系统图、雨水系统图、火灾报警系统图、智能化系统图、施工进度横道图、施工总平面图、钢结构详图（钢柱/钢梁）；**图纸审查系统**：v1.8.0 起 drawing_review.py 对图纸做 图层/图框/文字/尺寸/完整性/规范引用 六项自动检查，出 A~D 评级报告（文本 + 写入 DXF），ReviewAwareDxfBuilder 支持一行 .review()，BatchReviewer 批量汇总；**自然语言生成图纸**：v1.9.0 起 natural_language_engine.py 把中文描述（如「12x8 米三层住宅平面图带客厅厨房卧室」）按规则解析 → dispatch 到 19 类真实模板函数 → 一键出图，NLAwareDxfBuilder 提供 `generate_from_text(text)`/`parse_text(text)` 入口。
 category: engineering-cad
-version: 1.13.0
+version: 1.13.1
 author: 小海(WorkBuddy)
 ---
 
@@ -695,7 +695,7 @@ CLI 实测：`generate`/`export png`/`export obj` 三子命令全通过。
 | `bathroom_detail` | 卫生间大样：坐便器/洗手盆/淋浴间/地漏图例 + 给水支管 De25/De20 + 排水 De110/De50 + 坡度 i=0.02 箭头 + 带管径图例 | P_WALL/P_FIXTURE/P_SUPPLY/P_DRAIN |
 | `water_supply_system` | 给水系统图：立管 JL-1 De32 + 各层支管 De25 + 用水点 De20×n + 楼层标高圈 + 阀门/自动排气阀 | P_SUPPLY/P_DIM |
 | `drainage_system` | 排水系统图：立管 WL-1 De110 + 存水弯 + 坡度 i=0.026 + 检查口/清扫口 + 通气帽伸出屋面 700 | P_DRAIN/P_DIM |
-| `fire_fighting_plan` | 消防喷淋平面：喷头 ≤3.6m 网格 + 主管 DN100 + 支管 DN25 + 信号阀/水流指示器/末端试水 + 图例 | P_FIRE/P_WALL |
+| `fire_fighting_plan` | `mode='sprinkler'` 消防喷淋平面：喷头 ≤3.6m 网格 + 主管 DN100 + 支管 DN25 + 信号阀/水流指示器/末端试水；`mode='hydrant'` 消火栓系统图：消防立管 + 消火栓箱沿墙 + 屋顶水箱 + 水泵接合器 + 图例 | P_FIRE/P_WALL |
 
 ### templates_struct 新增 `beam_rebar`（替换旧"示意梁"）
 KL 框架梁配筋图：上/下通长筋 + 支座负筋（伸入 ln/3 端部下弯）+ 箍筋加密区 1.5h@100/非加密区@200 + 断面 1-1 跨中 / 2-2 支座 + 钢筋表（编号/规格/等级/根数/长度）+ 尺寸。参数 `BeamRebarParams`。
@@ -703,10 +703,37 @@ KL 框架梁配筋图：上/下通长筋 + 支座负筋（伸入 ln/3 端部下�
 ### NL 路由修复（关键词表新增）
 - 复合优先层：`消防喷淋/喷淋平面/喷淋系统/自动喷淋/消防平面/消火栓`、`给水系统/供水系统/排水系统/污水系统/给水立管/排水立管` → plumbing
 - 弱匹配层扩充：`卫生间/浴室/卫浴/给水/排水/供水` → plumbing
-- `_gen_plumbing` 四分支全部走真模板（旧版给水/排水复用雨水拓扑的"代用"已删除）；`_gen_structural` 梁分支走 `beam_rebar`（旧 beam_schematic 已删除）
+- `_gen_plumbing` 分支：`卫生间/浴室`→bathroom、`消火栓`→fire_fighting_plan(hydrant)、`消防/喷淋`→fire_fighting_plan(sprinkler)、`给水/供水`→water_supply、`else`→drainage（旧版给水/排水复用雨水拓扑的"代用"已删除）；`_gen_structural` 梁分支走 `beam_rebar`（旧 beam_schematic 已删除）
 
 ### 实测（examples/out_v113/，5 张全过 + 旧回归 46/46）
 一句话 → 出图 → PNG 渲染三步验证；卫生间 60 实体 / 给水 78 / 排水 59 / 消防 77 / 梁配筋 135；verify_nl.py 46/46、verify_pipeline.py 4/4 零回归。
+
+## v1.13.1 修复（NL 国标图框断链 + 消火栓路由）
+
+### 问题 1：NL 一句话生成的图纸缺国标图框（审查判 C 级）
+`demo_natural_language` 旧版用 `integrate_nl_to_builder(DxfBuilder)` 这条**残缺链**，链里没有 `add_gb_sheet`，且 `generate` 里的 `hasattr(self.builder, 'add_gb_sheet')` 守卫对基础 `DxfBuilder` 恒为 `False` → 静默跳过图框，产出"裸图"。
+**修复**：`demo_natural_language` 改用 `dxfkit.NLAwareDxfBuilder(style='gb_architectural')`（NL→Review→Code→GB 完整链），并显式 `generate_from_text(text, filename, add_sheet=True)`。国标图框落在 `GB_A3` 图纸空间布局（图框/标题栏/1:100 视口齐全），与 `out_gb`/`out_nl` 一致。
+> 注：`add_gb_sheet` 仅 `GBDxfBuilder`（及派生的 `NLAwareDxfBuilder`）具备，**基础 `DxfBuilder` 没有**——所有"成品图" demo 脚本须用 `GBDxfBuilder`。
+
+### 问题 2：输入"消火栓系统图"掉进排水分支，画出错误排水图
+`DRAWING_TYPE_PATTERNS` 已把 `消火栓` 路由到 `plumbing`，但 `消火栓` 不含子串 `消防`，`_gen_plumbing` 原有 `elif '消防' in t or '喷淋' in t` 分支匹配不到 → 落入 `else` 排水分支。
+**修复**：
+- `FireFightingParams` 增加 `mode: str = "sprinkler" | "hydrant"`；
+- `fire_fighting_plan` 在 `mode=='hydrant'` 时分派到新增 `_fire_fighting_hydrant`（消防立管 + 消火栓箱沿墙布置 + 消防管 + 屋顶水箱 + 水泵接合器 + 图例）；
+- `_gen_plumbing` 新增 `elif '消火栓' in t` 分支，传 `mode='hydrant'`。
+
+### 成品图 demo 补齐国标图框（审查 C 级清零行动）
+基础 `DxfBuilder` 无 `add_gb_sheet`，下列 demo 改用 `GBDxfBuilder` 并在 `save` 前调 `add_gb_sheet`，重跑后产出带框成品：
+- `examples/pro_templates.py`（out_pro，12 张专业模板）
+- `examples/villa_floors.py`（out_floors，3 张别墅分层平面）
+- `examples/extensions_showcase.py`（out_ext，5 张高级几何/建筑标准）
+- `examples/interfaces_demo.py` / `verify_pipeline.py`（走已修复的 NL 链）
+- `examples/regen_v113.py`：用修复后完整链重生成 out_v113（5 张）
+
+### 全量审查结果（examples/review_all.py）
+- 修复前：99 张 → A18 / B34 / **C47**，TOP 错误 `46× 未检测到标准图框`、`41× 缺少 BORDER 层`；
+- 修复后：104 张 → **A29 / B59 / C16**，TOP 错误降至 `16× 未检测到标准图框`。
+- 剩余 16 个 C 级均为 `examples/out/` 下的**单特性 API / 风格 / PCB 演示**（panel / pcb / style_* / font 等）和审查器**故意保留的负面夹具** `out_adv/review_缺图框坏图.dxf`，以及个别独立 demo（root `villa_15m.dxf`、`out_intf/cli_test.dxf`）——均非"成品图纸"，按设计不带国标图框。
 
 ## 进阶技巧：按图层回读校验（比全局 bbox 更严格）
 全局 `bbox` 会包含标注线、文字、门窗符号的外伸，**不能直接用来断言主体尺寸**。
