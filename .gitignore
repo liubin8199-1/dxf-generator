@@ -24,6 +24,9 @@ examples/out_v113/
 *.xlsx
 *.npy
 
+# 回收暂存（可逆清理，确认无用后再删）
+_trash_*/
+
 # Python
 __pycache__/
 *.py[cod]
