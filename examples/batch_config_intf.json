@@ -1,0 +1,10 @@
+[
+  {
+    "text": "生成一个 8x6 米两层小住宅平面图",
+    "output": "C:\\Users\\binliu8199\\.workbuddy\\skills\\dxf-generator\\examples\\out_intf\\batch_1.dxf"
+  },
+  {
+    "text": "生成一个 20x15 米办公楼平面图",
+    "output": "C:\\Users\\binliu8199\\.workbuddy\\skills\\dxf-generator\\examples\\out_intf\\batch_2.dxf"
+  }
+]

@@ -1,0 +1,38 @@
+# 生成产物（examples/ 下所有 out_* 目录，含 1.6G 的 out_dwg/）
+examples/out/
+examples/out_adv/
+examples/out_dwg/
+examples/out_e2e/
+examples/out_ext/
+examples/out_floors/
+examples/out_gb/
+examples/out_intf/
+examples/out_nl/
+examples/out_pro/
+examples/out_v113/
+
+# 二进制/导出文件
+*.png
+*.pdf
+*.svg
+*.jpg
+*.jpeg
+*.webp
+*.obj
+*.stl
+*.ply
+*.xlsx
+*.npy
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+
+# 编辑器/系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
