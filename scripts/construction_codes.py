@@ -69,8 +69,35 @@ class CodeList:
 
 
 # ============================================================
-# 2. 施工规范数据库（100+ 条，按 13 类整理）
+# 2. 施工规范数据库（100+ 条，按 14 类整理）
 # ============================================================
+
+# drawing_type 具体名 → 语义标签别名（修复「具体名 vs 语义标签」不对齐）
+# 旧匹配逻辑 `'all' in applicability or drawing_type in applicability` 对具体名
+# drawing_type（如 node_beam_column / beam_rebar / floor_plan）只能命中 'all' 类，
+# 导致节点图/钢筋图**完全漏掉** GB 50010 / GB 50204 / 16G101 等语义标签规范。
+# 本映射把具体名归一为语义标签，使节点图能自动引用 structural 类全部规范。
+DRAWING_TYPE_ALIASES = {
+    'floor_plan':               ['architectural', 'structural'],
+    'elevation':                ['architectural'],
+    'section':                  ['architectural', 'structural'],
+    'beam_rebar':               ['structural', 'beam'],
+    'column_rebar':             ['structural', 'column'],
+    'slab_rebar':               ['structural', 'slab'],
+    'foundation':               ['foundation', 'structural'],
+    'plumbing_plan':            ['plumbing'],
+    'electrical_plan':          ['electrical'],
+    'fire_plan':                ['fire'],
+    'hvac_plan':                ['hvac'],
+    'node_beam_column':         ['structural', 'beam', 'column'],
+    'node_stair':               ['structural', 'slab'],
+    'node_foundation':          ['foundation', 'structural'],
+    'node_pile':                ['foundation', 'structural'],
+    'node_steel_base':          ['steel', 'structural', 'foundation'],
+    'node_steel_beam_column':   ['steel', 'structural', 'beam', 'column'],
+    'node_steel_splice':        ['steel', 'structural', 'beam'],
+}
+
 
 class CodeDatabase:
     """施工规范数据库（纯静态，类级别访问）"""
@@ -129,6 +156,25 @@ class CodeDatabase:
                      "钢筋", ["structural"], 1),
         CodeReference("JGJ 18-2012", "钢筋焊接及验收规程",
                      "钢筋", ["structural"], 1),
+    ]
+
+    # ----- 平法图集（16G101 系列 · 混凝土结构施工图平面整体表示方法） -----
+    # ⚠️ E5（2026-09-11）：节点图（③层标准节点大样）生成后，施工说明的「执行规范」
+    # 清单里缺 16G101 这条关键规范。applicability 同时写**语义标签**（structural/beam/...）
+    # 与**节点图具体 drawing_type 名**（node_beam_column/node_stair/...）——后者保证即使
+    # 不走 DRAWING_TYPE_ALIASES 归一，节点图也能精确命中。
+    PINGFA_CODES = [
+        CodeReference("16G101-1",
+                     "混凝土结构施工图平面整体表示方法制图规则和构造详图（现浇混凝土框架、剪力墙、梁、板）",
+                     "平法", ["structural", "beam", "column", "slab",
+                              "node_beam_column", "node_stair", "node_foundation"], 1),
+        CodeReference("16G101-2",
+                     "混凝土结构施工图平面整体表示方法制图规则和构造详图（现浇混凝土板式楼梯）",
+                     "平法", ["structural", "slab", "node_stair"], 1),
+        CodeReference("16G101-3",
+                     "混凝土结构施工图平面整体表示方法制图规则和构造详图（独立基础、条形基础、筏形基础、桩基）",
+                     "平法", ["structural", "foundation",
+                              "node_foundation", "node_pile", "node_steel_base"], 1),
     ]
 
     # ----- 砌体结构 -----
@@ -258,17 +304,27 @@ class CodeDatabase:
     # ----- 全部规范（一次性汇总，避免重复遍历） -----
     ALL_CODES = (
         GENERAL_CODES + FOUNDATION_CODES + CONCRETE_CODES + REBAR_CODES +
-        MASONRY_CODES + STEEL_CODES + ROOF_CODES + DECORATION_CODES +
+        PINGFA_CODES + MASONRY_CODES + STEEL_CODES + ROOF_CODES + DECORATION_CODES +
         PLUMBING_CODES + ELECTRICAL_CODES + HVAC_CODES + FIRE_CODES + SAFETY_CODES
     )
 
     # ----- 查询 -----
     @classmethod
     def get_codes_by_drawing_type(cls, drawing_type: str) -> CodeList:
-        """根据图纸类型获取适用的规范清单（强条/推荐/参考 三级分类）"""
+        """根据图纸类型获取适用的规范清单（强条/推荐/参考 三级分类）
+
+        ⚠️ E5 修复：旧逻辑 `'all' in applicability or drawing_type in applicability`
+        对具体名 drawing_type（node_beam_column / beam_rebar / floor_plan）只能命中
+        'all' 类，漏掉语义标签规范。现增加 DRAWING_TYPE_ALIASES 归一——
+        具体名先映射到语义标签，再匹配。向后兼容：'all' / 精确名仍命中。
+        """
+        aliases = DRAWING_TYPE_ALIASES.get(drawing_type, [])
         mandatory, recommended, reference = [], [], []
         for code in cls.ALL_CODES:
-            if 'all' in code.applicability or drawing_type in code.applicability:
+            hit = ('all' in code.applicability
+                   or drawing_type in code.applicability
+                   or any(a in code.applicability for a in aliases))
+            if hit:
                 if code.priority == 1:
                     mandatory.append(code)
                 elif code.priority == 2:
@@ -339,13 +395,22 @@ class CodeFormatter:
 
     @staticmethod
     def format_for_dxf(code_list: CodeList, max_width: int = 180,
-                       max_recommended: int = 5, max_reference: int = 3) -> List[str]:
-        """格式化为 DXF 文本行（强条全列，推荐/参考限量）"""
+                       max_recommended: int = 5, max_reference: int = 3,
+                       max_mandatory: int = 12) -> List[str]:
+        """格式化为 DXF 文本行（强条限量 max_mandatory，推荐/参考限量）
+
+        ⚠️ E5 修复说明栏溢出：规范库修复后单图匹配规范数从 3 条涨到 20+ 条，
+        强条全列会撑爆 A3 说明栏、倒逼 auto_fit 把字高压到 2.0mm（< 2.5mm 可读下限）。
+        故强条也限量（优先列前 max_mandatory 条，超出标「…共M项」），
+        符合「宁可截断也不压字到不可读」的既定原则。
+        """
         lines = ["执 行 规 范", ""]
         if code_list.mandatory_codes:
             lines.append("【强条】")
-            for code in code_list.mandatory_codes:
+            for code in code_list.mandatory_codes[:max_mandatory]:
                 lines.append("  %s" % code.code_number)
+            if len(code_list.mandatory_codes) > max_mandatory:
+                lines.append("  ... 共%d项" % len(code_list.mandatory_codes))
             lines.append("")
         if code_list.recommended_codes:
             lines.append("【推荐】")
@@ -441,24 +506,92 @@ class _CodeAwareMixin:
         self.code_db = CodeDatabase()
         self.code_formatter = CodeFormatter()
 
+    def _code_line_items(self, lines, line_spacing: float, base_height: float,
+                         layer: str, title_layer: str, mandatory: bool = False):
+        """把「执行规范」清单展开成行清单 [(dx, dy, text, height, layer, style)]。
+
+        字高全部改为 **base_height 的比例**（原来硬编码 5 / 3.5 / 2.8 / 2.5）：
+        1.0 / 0.7 / 0.56 / 0.5。base_height=5 时与旧行为**逐值相同**（向后兼容），
+        但传 3.5 就能整块等比缩小去适配有限的说明栏。
+        """
+        items = []
+        bh = base_height
+
+        def add(dx, dy, text, h, lyr, st=None):
+            items.append((dx, dy, text, h, lyr, st))
+
+        cur = 0.0
+        add(0, cur, "执 行 规 范", bh * 1.0, title_layer, 'GB_TITLE')
+        cur -= line_spacing * 1.8
+        for line in lines:
+            if line.startswith('【'):
+                add(0, cur, line, bh * 0.7, title_layer, 'GB_TITLE')
+            elif line.startswith('  ...'):
+                add(8, cur, line.strip(), bh * 0.5, layer)
+            elif line.strip():
+                add(8, cur, line.strip(), bh * 0.56, layer)
+            cur -= line_spacing
+        if mandatory:
+            add(0, cur, "注: 【强条】为强制性条文，必须严格执行", bh * 0.5, layer)
+            cur -= line_spacing
+        return items, cur
+
     def add_code_references(self, drawing_type: str,
                             x: float = 0, y: float = 0, width: float = 180,
                             line_spacing: float = 4.0,
                             layer: str = 'G_TEXT',
                             title_layer: str = 'G_TITLE',
                             style: Optional[str] = None,
-                            target=None, scale: float = 100.0) -> CodeList:
+                            target=None, scale: float = 100.0,
+                            max_height: Optional[float] = None,
+                            auto_fit: bool = True,
+                            base_height: float = 5.0,
+                            min_base_height: float = 5.0) -> CodeList:
         """在图纸中添加「执行规范」清单（强条/推荐/参考 三级分类）。
 
         坐标单位 = 毫米。`target=图纸空间Layout` 时按图纸毫米直接绘制（推荐 A3 说明栏）；
         `target=None` 时绘制到模型空间，按 `scale`（默认 100）放大以适配 1:100 出图。
+
+        `max_height` + `auto_fit=True`：清单超高时自动压缩行距/字高（下限
+        `min_base_height`）。
+        ⚠️ E5 回归修复：`min_base_height` 抬到 5.0 —— 规范清单最小字高是
+        `base_height` 的 0.5 倍（省略号行/注记行），5.0×0.5=2.5mm 正好是
+        GB/T 50001 图纸可读下限。旧值 3.0 会让最小字高跌到 1.5mm（看得见读不出），
+        违反「宁可截断也不压字到不可读」原则。配合上游 `code_h` 给足预留高度，
+        正常图纸不再触发压缩。
+        """
+        """在图纸中添加「执行规范」清单（强条/推荐/参考 三级分类）。
+
+        坐标单位 = 毫米。`target=图纸空间Layout` 时按图纸毫米直接绘制（推荐 A3 说明栏）；
+        `target=None` 时绘制到模型空间，按 `scale`（默认 100）放大以适配 1:100 出图。
+
+        `max_height` + `auto_fit=True`：清单超高时自动压缩行距/字高（下限
+        `min_base_height`）。**注意**：本方法字高原来是硬编码的，只受 scale 缩放，
+        所以模型空间下**不要传 scale=1.0**（会缩成 5mm → 审查报「字高偏小」）。
         """
         code_list = self.code_db.get_codes_by_drawing_type(drawing_type)
-        lines = self.code_formatter.format_for_dxf(code_list, width)
+        lines = self.code_formatter.format_for_dxf(code_list, width, max_mandatory=12)
         in_paper = target is not None
         s = 1.0 if in_paper else scale
         tgt = target if in_paper else self.msp
         style_name = style or getattr(self, '_chinese_style', None) or 'GB_CHINESE'
+        _mand = bool(code_list.mandatory_codes)
+
+        # ---- auto_fit：先量后画 ----
+        _ls, _bh = line_spacing, base_height
+        if max_height is not None and auto_fit:
+            for _ in range(8):
+                _items, _ = self._code_line_items(
+                    lines, _ls, _bh, layer, title_layer, _mand)
+                _h = (-_items[-1][1]) if _items else 0.0
+                if _h <= max_height or _bh <= min_base_height:
+                    break
+                f = min(max_height / _h, 0.98)
+                _ls *= f
+                _bh = max(_bh * f, min_base_height)
+
+        items, cur_y = self._code_line_items(
+            lines, _ls, _bh, layer, title_layer, _mand)
 
         def put(px, py, text, h, lyr, st=None):
             if in_paper:
@@ -470,27 +603,8 @@ class _CodeAwareMixin:
                 self.add_text(px * s, py * s, text, height=h * s,
                               layer=lyr, align='LEFT', style=st or style_name)
 
-        cur_y = y
-
-        # 标题
-        put(x, cur_y, "执 行 规 范", 5, title_layer, st='GB_TITLE')
-        cur_y -= line_spacing * 1.8
-
-        # 分类行
-        for line in lines:
-            if line.startswith('【'):
-                put(x, cur_y, line, 3.5, title_layer, st='GB_TITLE')
-            elif line.startswith('  ...'):
-                put(x + 8, cur_y, line.strip(), 2.5, layer)
-            elif line.strip().startswith('GB') or line.strip().startswith('JGJ'):
-                put(x + 8, cur_y, line.strip(), 2.8, layer)
-            elif line.strip():
-                put(x + 8, cur_y, line.strip(), 2.8, layer)
-            cur_y -= line_spacing
-
-        # 强条标记
-        if code_list.mandatory_codes:
-            put(x, cur_y, "注: 【强条】为强制性条文，必须严格执行", 2.5, layer)
+        for dx, dy, text, h, lyr, st in items:
+            put(x + dx, y + dy, text, h, lyr, st)
         return code_list
 
     def add_full_code_reference(self, drawing_type: str,

@@ -40,3 +40,7 @@ __pycache__/
 .DS_Store
 Thumbs.db
 *.swp
+
+# 识图评测原始图纸（可能 100MB+，不入库；用 benchmarks/import_samples.py 本地导入）
+benchmarks/raw/*
+!benchmarks/raw/.gitkeep

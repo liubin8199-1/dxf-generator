@@ -1,8 +1,8 @@
 ---
 name: dxf-generator
-description: 用自然语言生成 DXF 矢量图纸的 Skill。封装 ezdxf 核心能力（文档/模型空间/图元/图层/保存/图纸空间），提供高层绘图库 dxfkit.py，让 Agent 把"画一个XX平面图/零件图/布置图/电气图"直接转成可打开的 .dxf 文件。无需安装 AutoCAD。支持五大功能：导入修改、参数化模板、批量处理、样式系统、自然语言分发；扩展模块含 geomkit 高级几何（齿轮/螺旋/贝塞尔）、archkit 建筑标准（轴网/双线墙/门窗/楼梯/图框/户型生成器）、budget 造价预算与采购清单、templates_arch 建筑专业（立面/剖面/节点大样/楼梯详图）、templates_struct 结构专业（钢筋符号/柱/板/基础/楼梯配筋）、templates_mep 机电专业（电气符号/电气图例/照明平面）；**GB/T 国标标准化**：gb_standards.py 提供 48 个国标图层、标准线型/线宽、符号/文字/图框标准与 GBDxfBuilder（A0~A4 图框+标题栏+1:100 视口，可直接出全套施工图）；**中文字体支持**：font_manager.py 自动注册 GB_CHINESE/GB_TITLE/GB_MULTILINE 样式（gbenor.shx + gbcbig.shx），所有含 CJK 的 TEXT/MTEXT 实体自动绑定中文样式，杜绝「中文显示为 ??」乱码；**施工说明模块**：construction_notes.py 按 GB 系列规范自动生成各专业施工说明（一般/土方/基础/主体/砌体/屋面/装饰/给排水/电气/暖通/消防/安全），一行 API 即可把说明写入图纸空间说明栏或模型空间；**施工规范引用模块**：construction_codes.py 内置 GB/JGJ 规范库 64 条×13 类，按图纸类型/专业自动匹配 强条/推荐/参考，CodeAwareDxfBuilder 一行把规范清单画进图纸空间或模型空间；**图纸管理全套**：drawing_management.py（图纸编号系统/目录/图签+会签栏/门窗表/材料做法表/结构设计说明/设备材料表/工程量清单 + CompleteDrawingManager 一键出全部表格）；**高级专业模板**：templates_advanced.py 十个模块——总平面图、防火分区·消防疏散图、空调系统图、防排烟系统图、雨水系统图、火灾报警系统图、智能化系统图、施工进度横道图、施工总平面图、钢结构详图（钢柱/钢梁）；**图纸审查系统**：v1.8.0 起 drawing_review.py 对图纸做 图层/图框/文字/尺寸/完整性/规范引用 六项自动检查，出 A~D 评级报告（文本 + 写入 DXF），ReviewAwareDxfBuilder 支持一行 .review()，BatchReviewer 批量汇总；**自然语言生成图纸**：v1.9.0 起 natural_language_engine.py 把中文描述（如「12x8 米三层住宅平面图带客厅厨房卧室」）按规则解析 → dispatch 到 19 类真实模板函数 → 一键出图，NLAwareDxfBuilder 提供 `generate_from_text(text)`/`parse_text(text)` 入口。
+description: 用自然语言生成 DXF 矢量图纸的 Skill。封装 ezdxf 核心能力（文档/模型空间/图元/图层/保存/图纸空间），提供高层绘图库 dxfkit.py，让 Agent 把"画一个XX平面图/零件图/布置图/电气图"直接转成可打开的 .dxf 文件。无需安装 AutoCAD。支持五大功能：导入修改、参数化模板、批量处理、样式系统、自然语言分发；扩展模块含 geomkit 高级几何（齿轮/螺旋/贝塞尔）、archkit 建筑标准（轴网/双线墙/门窗/楼梯/图框/户型生成器）、budget 造价预算与采购清单、templates_arch 建筑专业（立面/剖面/节点大样/楼梯详图）、templates_struct 结构专业（钢筋符号/柱/板/基础/楼梯配筋）、templates_mep 机电专业（电气符号/电气图例/照明平面）；**GB/T 国标标准化**：gb_standards.py 提供 48 个国标图层、标准线型/线宽、符号/文字/图框标准与 GBDxfBuilder（A0~A4 图框+标题栏+1:100 视口，可直接出全套施工图）；**中文字体支持**：font_manager.py 自动注册 GB_CHINESE/GB_TITLE/GB_MULTILINE 样式（gbenor.shx + gbcbig.shx），所有含 CJK 的 TEXT/MTEXT 实体自动绑定中文样式，杜绝「中文显示为 ??」乱码；**施工说明模块**：construction_notes.py 按 GB 系列规范自动生成各专业施工说明（一般/土方/基础/主体/砌体/屋面/装饰/给排水/电气/暖通/消防/安全），一行 API 即可把说明写入图纸空间说明栏或模型空间；**施工规范引用模块**：construction_codes.py 内置 GB/JGJ 规范库 64 条×13 类，按图纸类型/专业自动匹配 强条/推荐/参考，CodeAwareDxfBuilder 一行把规范清单画进图纸空间或模型空间；**图纸管理全套**：drawing_management.py（图纸编号系统/目录/图签+会签栏/门窗表/材料做法表/结构设计说明/设备材料表/工程量清单 + CompleteDrawingManager 一键出全部表格）；**高级专业模板**：templates_advanced.py 十个模块——总平面图、防火分区·消防疏散图、空调系统图、防排烟系统图、雨水系统图、火灾报警系统图、智能化系统图、施工进度横道图、施工总平面图、钢结构详图（钢柱/钢梁）；**图纸审查系统**：v1.8.0 起 drawing_review.py 对图纸做 图层/图框/文字/尺寸/完整性/规范引用 六项自动检查，出 A~D 评级报告（文本 + 写入 DXF），ReviewAwareDxfBuilder 支持一行 .review()，BatchReviewer 批量汇总；**自然语言生成图纸**：v1.9.0 起 natural_language_engine.py 把中文描述（如「12x8 米三层住宅平面图带客厅厨房卧室」）按规则解析 → dispatch 到 26 类真实模板函数（含 ③ 层 7 类节点大样：16G101 混凝土 4 类「梁柱节点/楼梯节点/基础节点/桩基节点」+ GB 50017 钢结构 3 类「钢柱脚/钢梁柱栓焊混接/钢梁拼接」）→ 一键出图，NLAwareDxfBuilder 提供 `generate_from_text(text)`/`parse_text(text)` 入口；**识图评测集** `benchmarks/`（v1.17.4）：真实图纸真值表 + `eval.py` 报「严格/宽松/拒识/**认错**」四口径（认错率是核心指标）；**统一验证入口** `examples/verify_all.py`（v1.17.5）：一句话跑完全部 verify 套件并汇总；**一键流水线**：v1.16.0 起 pipeline.py 把「出图→识图→算量→施工说明→审查→渲染→3D体量→汇总」串成一条链，`pipeline("一句话", out_dir)` 一次产出全套交付包（DXF + 工程量清单 4 格式 + 施工说明 + 识图报告 + 审查报告 + 3D 模型/HTML + manifest 清单），单条约 2.7 秒；**v1.17.0 起施工说明自动写入图纸空间说明栏**（按国标图框几何算出，装不下自动分页为「说明续页」图幅），模型空间保持干净；新增**成品图幅渲染**（`space='paper'`，出图框+标题栏+说明栏+视口图形的打印效果图），并修复 `add_gb_sheet` 从 v1.14 起就存在的**视口比例 bug**（`add_viewport` 第 4 参是 view_height 不是比例，导致视口只看到 0.01mm 切片）；**v1.17.1 起识图读取通用化**：`drawing_reader` 增加容错加载（严格失败自动退 recover）与 `\U+XXXX` 中文转义解码（外部软件转出的真实图纸图层名常写成 `IRC\U+5929\U+82B1`，不解码会让按图层名匹配的规则静默失效），并容忍无名图层；配套 `examples/dxf_prepare.py` 做 DXF 预处理（剥 OBJECTS 段 + 删缺名字的表记录），`examples/dwg2dxf_convert.py` 用 aspose-cad 的 `CadOutputMode.CONVERT` 把 DWG 忠实转 DXF。
 category: engineering-cad
-version: 1.13.1
+version: 1.17.4
 author: 小海(WorkBuddy)
 ---
 
@@ -753,3 +753,807 @@ wall = layer_extents("villa_1F.dxf", "WALL")
 assert abs(wall[2] - 15000) < 1 and abs(wall[3] - 12000) < 1   # 墙体核心 15m × 12m
 ```
 实例中 WALL 图层实测 `maxx=15000 / maxy=12000 / min=(0,0)`，而全局 bbox 是 `x[-1783,15060]`（多出的 60 是窗符号外伸、1783 是左侧尺寸标注），**两者不可混用**。
+
+---
+
+## 识图引擎（v1.14.0 新增 · 图 → 结构化理解）
+
+此前所有能力都是"出图"（语言/参数 → DXF）。**识图是反方向**：给一张 DXF，把它读懂。
+
+| 能力 | 说明 |
+|---|---|
+| 文件元信息 | DXF 版本 / 单位 / 全部布局名 |
+| 图层清单 | 按国标专业归类（G 建筑 / S 结构 / P 给排水 / E 电气 / 图框 / 自定义） |
+| 实体分类统计 | 线/圆/弧/多段线/文字/标注/块引用/填充，按类型 + 按空间分布 |
+| 文字内容提取 | 按图层聚合 TEXT / MTEXT（MTEXT 自动剥离格式码） |
+| 块引用统计 | 块名 → 引用次数 |
+| 尺寸标注提取 | 全部 DIMENSION 的测量值（范围 / 平均） |
+| 几何量算 | 各图层线长、闭合面积、块数量 + 模型空间 extents |
+| 图纸类型推断 | **三信号源加权**：文件名 0.8 > 图内文字 0.7/0.5 > 图层特征 0.4 |
+| 完整性体检 | 图框 / 标题栏 / 文字层 / 标注层 / 中文样式 / 量纲一致性 |
+
+```python
+from drawing_reader import read, describe
+info = read("某图.dxf")
+print(info.drawing_type, info.type_confidence)      # 梁配筋图 0.6
+print(info.completeness)                            # 体检字典
+print(info.to_markdown())                           # 完整识别报告
+info.to_json()                                      # 机读 JSON
+```
+
+**关键认知（踩过的坑）**：
+- **图层声明 ≠ 图层有实体**。国标图纸一次性声明 48+ 图层，大量为空。类型推断必须只用 `entity_count > 0` 的图层，否则"电气图"会把柱配筋图抢走。
+- **文件名是最强信号**。工程图文件名通常就是图名，权重给到 0.8，可纠正图内文字缺失的情况。
+- **量纲启发式**。部分文件 `$INSUNITS` 标为"米"但实际按毫米绘制；用模型空间 extents 反推（A3 图框约 420×297），矛盾时出警告。
+
+## 清单统计（v1.14.0 新增 · 图 → 工程量表）
+
+`bom.py`：遍历实体 → 按国标图层归并 → 工程量清单，导出 CSV / JSON / Excel / Markdown。
+
+```python
+from bom import generate_bom
+rep = generate_bom("某图.dxf", "out/")   # 一次导出 4 种格式
+print(rep.to_text())
+print(rep.summary())                      # {'墙体': 136.0, '门窗': 94.8, ...}
+```
+
+归并规则（`LAYER_BOM_RULES`，28 类）：墙体 / 门窗 / 楼梯 / 钢筋 / 梁 / 柱 / 板 / 基础 / 给水管 / 排水管 / 消防管 / 强电 / 照明 / 电线 / 防雷接地 / 标注 / 图框 …
+
+- 线状实体累计**长度**（m）、闭合多段线与圆累计**面积**（m²）、块与文字累计**个数**
+- 单位换算按毫米制（mm → m / m²），与 dxfkit 出图单位一致
+- `classify_layer(name)` 可单独调用，供其他模块复用图层归类
+
+> 与 `drawing_management.QuantityList` 的分工：那个是**手工填数**的清单表骨架；`bom.py` 是**从图纸自动算量**。两者互补，不重复。
+
+## 施工说明 v2（v1.14.0 新增 · 按图纸类型匹配话术）
+
+`construction_notes_v2.py`：**28 类图纸 / 143 条条款 / 43 部规范**。
+
+```python
+from construction_notes_v2 import get_construction_notes, ProfessionalPhraseLibrary
+print(get_construction_notes("beam_rebar"))          # 梁配筋施工说明
+key = ProfessionalPhraseLibrary.match_by_drawing_type(info.drawing_type)  # 识图→说明联动
+```
+
+> 与 `construction_notes.py` 的分工：老模块按 **GB 系列专业**（土方/基础/主体…）生成；v2 按 **图纸类型**（梁配筋/防排烟/配电…）精确匹配。两者并存，v2 供"识图驱动说明"的场景。
+
+## 电气 / 暖通专业洞（v1.14.0 补齐）
+
+此前电气只有图例+照明平面、暖通只有空调系统图；本次补 4 个真模板：
+
+| 模板 | 函数 | 图层 |
+|---|---|---|
+| 配电系统图（单线图） | `dist_power_system(Params)` | E_MAIN/E_BUS/E_BREAKER/E_CABLE/E_EQUIP |
+| 防雷接地图 | `lightning_grounding(Params)` | E_LIGHTNING/E_GROUND/E_DOWN |
+| 空调水系统图 | `chilled_water_system(Params)` | HVAC_CHILLER/HVAC_PUMP/HVAC_PIPE/HVAC_RISER/HVAC_TOWER |
+| 风管平面图 | `duct_plan(Params)` | HVAC_DUCT/HVAC_DUCT_BRANCH/HVAC_OUTLET/HVAC_EQUIP |
+
+统一注册表 `dxfkit.SPECIALTY_TEMPLATES = {key: (函数, 参数类)}`。
+
+> **API 坑（务必注意）**：外部参考代码常写成 `b.rectangle(...)` / `b.circle(...)` / `b.line(..., linewidth=2)`——**本库没有这些**。真实接口是：
+> - `b.add_rectangle(x, y, w, h, layer=)` —— 左下角 + 宽高（**不是** x0,y0,x1,y1）
+> - `b.add_circle(cx, cy, r, layer=)`
+> - `b.line(x1, y1, x2, y2, layer=)` —— **不接受** `linewidth` / `linetype` 参数，线型靠图层控制
+> - `b.text(s, x, y, h=, layer=)` —— 文字内容在前
+> - `b.rect(x0, y0, x1, y1, layer=)` —— 这个是右上角式，与 `add_rectangle` 语义不同
+
+## v1.14.0 验证（examples/verify_v114.py · 60 项全过）
+
+```
+[1] 识图引擎     15 张全识别 · Markdown/JSON 可导出 · extents 已采集
+[2] 清单统计     10 张全出清单 · CSV/JSON/MD/Excel 四格式落盘 · 图层归类正确
+[3] 施工说明 v2  28/28 类可生成 · 识图→说明联动正确 · 143 条款 / 43 规范
+[4] 电气专业洞   配电 113 实体 / 防雷 46 实体 · 均带国标图框存盘
+[5] 暖通专业洞   空调水 80 实体 / 风管 69 实体 · 均带国标图框存盘
+[6] 主链集成     dxfkit 导出 20 个新符号全部就位
+------------------------------------------------------------
+PASS 60 / FAIL 0
+```
+
+全量分析（`examples/analyze_all.py`，97 张 DXF）：
+
+| 指标 | 结果 |
+|---|---|
+| 识图成功 | **97/97** |
+| 清单统计成功 | **97/97** |
+| 含国标图框 | 81 |
+| 图别识别覆盖 | 平面图21 / 结构配筋9 / 剖面6 / 电气6 / 机械零件5 / 钢结构4 / 立面4 / 电子3 / 防火分区3 / 空调3 … 未识别 8（均为 `out/` 单特性 API 演示件，按设计无图名） |
+
+报告：`examples/out_v114/_full_analysis.json` / `_full_analysis.md`
+
+---
+
+## DXF → 3D 体量挤出（v1.15.0 新增 · 平面图变能转着看的立体模型）
+
+**和已有的 `DXFTo3D` 不是一回事**，别搞混：
+
+| | `interfaces.DXFTo3D`（旧） | `extrude3d`（新） |
+|---|---|---|
+| 原理 | 闭合轮廓 → **z=0 平面三角化** | 闭合轮廓 → **底面+顶面+侧面** |
+| 产物 | 平面薄片（无厚度、无高度） | 真体块（有厚度、有层高） |
+| 多楼层 | ❌ | ✅ 按标高叠加 |
+| 预览 | ❌ | ✅ Three.js HTML，可拖拽旋转 |
+
+### 核心：三类几何都能挤出
+
+```python
+from extrude3d import ExtrudeBuilder, ExtrudeParams, MultiFloorBuilder, export_viewer_html
+
+# 单层
+b = ExtrudeBuilder(ExtrudeParams(wall_height=3000))
+mesh = b.build('平面图.dxf')
+b.export_mesh(mesh, 'stl', 'out/model')          # model.stl / model.obj
+export_viewer_html(mesh, 'out/model.html')       # 浏览器双击即可转着看
+
+# 多楼层（层高 3000、板厚 200）
+mf = MultiFloorBuilder(floor_height=3000, slab_thickness=200)
+mesh = mf.build([('1F.dxf', 0), ('2F.dxf', 3200), ('3F.dxf', 6400)])
+```
+
+### ⚠️ 最关键的两个坑（务必记住）
+
+**坑 1：本库的墙是「双线 LINE」，不是闭合多段线。**
+`wall_h` / `wall_v` 画出来的是两条平行线（各偏 120mm）+ 无封口，端点度数是 `{1: 28, 2: 4}`——**根本不闭合**。
+所以既要"闭环重建"也要"平行线配对"：
+- `pair_parallel_lines(segs)` —— 把两条平行线配对成矩形轮廓（**主力**，命中 21 对）
+- `rebuild_loops(segs)` —— 线段链闭环重建（兜底）
+
+不做这一步，墙体一个都挤不出来（只会挤出柱子）。
+
+**坑 2：STL 头必须精确 80 字节。**
+`b"DXF Skill extrude3d"` 是 18 字符，补 60 个 `\x00` 只有 78 字节 → **用 `.ljust(80, b"\x00")`**。
+
+### 图层高度表（`DEFAULT_LAYER_HEIGHTS`）
+
+墙体 3000 / 柱 3000 / 梁 500 / 板 200 / 基础 600 / 门 3000 / 窗 3000；
+管道 200 / 设备 800 / 电线 100。
+图框 / 标注 / 文字 / 轴线 / 填充 / 符号（`SKIP_LAYER_PREFIXES`）**自动跳过**不挤出。
+
+### 验证（examples/verify_v115.py · 37 项全过）
+
+```
+[1] 轮廓提取   双线配对正确 · 不等长/超间距不误配 · 闭环重建
+[2] 单层挤出   STL(体积符合 84+50n) · OBJ · 索引合法 · 高度 3000
+[3] 多楼层     三层总高 9400mm 精确 · 180 三角面
+[4] HTML 预览  Three.js + OrbitControls + Z-up
+[5] 主链集成   dxfkit 导出 10 个新符号
+--------------------------------------------------------
+PASS 37 / FAIL 0
+```
+
+**端到端实测**：`"画一个三层住宅平面图"` → 201 实体 2D 施工图 → 324 三角面 3D → 可旋转页面。
+
+### 诚实的边界
+
+- 出的是**体量模型**（有厚度、有层高、能转），**不是工程级 BIM**
+- **门窗洞口不会自动开洞**（窗做了实心体块，未挖洞）
+- 多楼层是**机械叠加**，楼层间未做构件对齐校验
+- 精确深化仍需在 Blender / SketchUp 里精修
+
+---
+
+## 一键流水线（v1.16.0 新增 · 一句话出完整交付包）
+
+`scripts/pipeline.py` 把已有能力串成一条链：
+
+```
+一句话
+  ↓ [1] 出图   <语义名>.dxf                  NLAwareDxfBuilder.generate_from_text
+  ↓ [2] 识图   understanding.json / .md      drawing_reader.DrawingReader
+  ↓ [3] 算量   bom/bom.{csv,json,xlsx,md}    bom.generate_bom
+  ↓ [4] 说明   construction_notes.md         construction_notes_v2（按识图结果匹配话术）
+  ↓ [5] 审查   review.md（A~D 级）           drawing_review.DrawingReviewer
+  ↓ [6] 渲染   render.png（可选）            interfaces.DXFToImage
+  ↓ [7] 3D     model.{stl,obj,html}          extrude3d.ExtrudeBuilder
+  ↓ [8] 汇总   pipeline_report.{txt,json} + manifest.json
+```
+
+```python
+import sys, os
+sys.path.insert(0, os.path.join(<skill_dir>, "scripts"))
+from dxfkit import pipeline, pipeline_batch
+
+r = pipeline("12x8米三层住宅平面图带客厅厨房卧室", "out/")   # 约 2.7 秒
+print(r.to_text())
+
+r = pipeline("6米框架梁配筋图", "out/", do_render=True)      # 开渲染（慢，约 7 秒）
+rs = pipeline_batch(["12x8米住宅平面图", "配电系统图"], "batch/")
+```
+
+命令行：
+
+```bash
+python scripts/pipeline.py "12x8米住宅平面图" -o out/ [--render] [--no-review] [--no-3d] [--no-sheet]
+python scripts/pipeline.py --batch texts.txt -o out_batch/ --no-review
+```
+
+**四个设计要点（踩过坑才这么定的）**：
+
+1. **识图前置到算量/说明之前**——施工说明的话术要按识图结果匹配（比 NL 解析的图别更贴近实际图形）。
+2. 除"出图"外**任何一步失败都不中断**，失败写进该步状态，最后汇总列出（便于定位）。
+3. 出图文件用**输入语义命名**，不再统一叫 `drawing.dxf`——识图的图别推断里"文件名"权重最高(0.8)，
+   固定成 `drawing.dxf` 等于自废武功。
+4. **渲染默认关**（300dpi 约 5~7 秒）；1~5 + 3D 默认开（3D 是纯 Python，几十毫秒）。
+
+产物清单落 `manifest.json`（相对路径 + 字节数），便于整包归档。
+
+### 验证（`examples/verify_pipeline_v115.py` · 55 项全过）
+
+```
+[1] 单条全链     8 步槽位齐全 · 四处产物 · 报告可回读
+[2] 批量         5 种图别全成功 · 专业有区分度
+[3] 配置变体     只出图 / 裁剪 BOM 格式 / 关 3D / 不加图框
+[4] 产物完整性   manifest 逐项落地 · 关键产物存在
+[5] 主链集成     dxfkit 导出 5 个新符号
+[6] 字体体检+渲染 各字号出字 · 未选点阵位图字体 · PNG 落地
+--------------------------------------------------------
+PASS 55 / FAIL 0
+```
+
+---
+
+## 渲染层四个老 bug 的修复（v1.16.0）
+
+改渲染前请先读这段，都是**不报错但结果错**的坑。
+
+### 1. 中文"静默丢字"（最严重 · 影响所有渲染）
+
+`SimSun`（`simsun.ttc`）含**点阵位图**，matplotlib/Agg 在约 **5~6pt 的字号带**会把整行中文
+渲染成**空白**（黑像素 = 0），而 ASCII 正常、**不抛任何异常**。施工说明那类密排小字正好落在该
+字号带 → 中文凭空消失，肉眼极难发现。
+
+实测各字号黑像素（字符串"本工程图纸尺寸"）：
+
+| 字体 | 3pt | 4pt | 5pt | 6pt | 7pt | 8pt | 10pt |
+|---|---|---|---|---|---|---|---|
+| **simsun.ttc** | 20 | 92 | **0** | **0** | 331 | 567 | 885 |
+| msyh.ttc | 121 | 210 | 426 | 686 | 745 | 1088 | 1463 |
+| simhei.ttf | 120 | 213 | 360 | 535 | 602 | 891 | 1434 |
+
+**修复**：`_MPL_CJK_CANDIDATES` 把 SimSun 从首位**降到末位兜底**，优先 msyh → simhei → Deng →
+simkai → simfang；并新增体检函数 `interfaces.check_cjk_font_sizes()`，把"静默丢字"变成
+**可断言检查**（已接入 `verify_pipeline_v115.py` 第 6 组，作回归防线）。
+
+### 2. 文字尺寸失配（说明栏糊成一团）
+
+`_to_raster` 的字号换算原本用 `fig_h`（整图高度），但 `set_aspect('equal', adjustable='box')`
+会把坐标轴盒子**缩小**，真实"数据→英寸"比例小于 `fig_h/range` → 字号被整体放大（实测 2.3 倍），
+密排行距被吃掉，渲染出来糊成一团。
+
+**修复**：先 `fig.canvas.draw()` 完成布局，再量 **实际坐标轴高度**（`ax.get_window_extent()`）
+来算 `pts_per_unit`，不能用 `fig_h`。
+
+### 3. 说明/规范落点（NL 自动追加的）
+
+原行为：施工说明按 1:100 放大后画在 `(23200, 28300)`，但 `width`（换行宽度）**不参与缩放**
+→ 字高 250mm 却按 175mm 换行，**每行一个字**竖着糊成一列；执行规范更糟，默认 `(0,0)`
+**直接压在图形上**。
+
+**修复**：`natural_language_engine.generate()` 先用 `ezdxf.bbox.extents` 量图形包围盒，
+把两段文字块放到**图形右侧空白区**，`width`/行距/字高**按同一比例缩放**，规范清单接在说明下方。
+
+### 4. 电气图例 `'str' object is not callable`
+
+`templates_mep.electrical_legend()` 要的是 `(名称, 可调用对象, 说明)` 三元组，而 NL 引擎传的
+是 `{'sym': 'sym_lamp_ceiling'}` **字符串** → **任何电气类 NL 请求都直接报错**（该分支从未跑通；
+46/46 的 `verify_nl` 没覆盖到）。
+
+**修复**：新增 `normalize_legend_item()` 兼容三元组与字典两种写法 + `_SYMBOL_REGISTRY`
+（符号名 → 绘制适配器）自动解析字符串符号名。
+
+### 本库 API 备忘（外部参考代码经常对不上）
+
+| 你以为 | 实际 |
+|---|---|
+| `DrawingReader().read(path)` | `DrawingReader(path).read()` ← **路径在构造函数** |
+| `b.rectangle(...)` | `add_rectangle(x, y, w, h)` ← 左下角 + **宽高** |
+| `b.circle(...)` | `add_circle(cx, cy, r)` |
+| `b.line(x1,y1,x2,y2, linewidth=2)` | `line()` **不吃线宽/线型**（靠图层控制） |
+| `report = generate_bom(...)` 再自己导 | `generate_bom(dxf, out_dir)` **一次导出 4 种格式**（`{base}_bom.*`） |
+| `electrical_legend(items=[{'sym':'sym_x'}])` | 现在两种都行（v1.16.0 起） |
+| `DXFTo3D` 出体块 | 那是 z=0 薄片；**体块要用 `extrude3d.ExtrudeBuilder`** |
+
+---
+
+## 施工说明移入图纸空间说明栏 + 视口修复（v1.17.0）
+
+### 一句话
+
+施工说明不再画在模型空间（那是 34500mm 高的文字柱），而是**写进图纸空间图幅的说明栏**；
+装不下自动分页出「说明续页」图幅。顺带修掉一个从 v1.14 就存在的**视口比例 bug**。
+
+### 用法（全自动，无需改调用）
+
+```python
+b = NLAwareDxfBuilder()
+b.generate_from_text("12x8米三层住宅平面图带客厅厨房卧室", "out.dxf", add_sheet=True)
+# → 说明自动进 GB_A3 的说明栏；不够则自动建 GB_A3_说明2
+# → 视口比例自动挑（1:100），标题栏同步
+```
+
+强制/关闭：
+
+```python
+b.generate_from_text(text, path, add_sheet=True, notes_in_layout=False)  # 说明留模型空间
+b.generate_from_text(text, path, add_sheet=False)                        # 无图框 → 说明回模型空间
+```
+
+### 三个新 API
+
+| API | 作用 |
+|---|---|
+| `BorderStandard.paper_notes_rect(paper)` | 说明栏矩形 (x, y, w, h)，**图纸毫米**；A3 = (230, 71, 180, 216) |
+| `BorderStandard.viewport_size(paper)` | 视口 (宽, 高)，与 `add_gb_sheet` 同源 |
+| `BorderStandard.fit_scale(w, h, paper)` / `scale_label(s)` | 挑标准比例 / `0.01 → "1:100"` |
+| `ConstructionNoteMixin.draw_notes_items(items, x, y, target=)` | 把行清单落笔（分页用） |
+| `ConstructionNoteMixin._notes_line_items(...)` | 说明 → 行清单 `[(dx, dy, text, h, layer, style)]` |
+
+### ⚠️ 三个必须记住的坑
+
+1. **`Layout.add_viewport(center, size, view_center, view_height)` 第 4 参是
+   view_height（模型单位），不是比例！** 传 `1/100` 会让视口只看到 0.01mm 切片
+   （`get_scale()` 返回 27200）。正确：`view_height = 视口高(纸mm) / scale`。
+2. **ezdxf 渲染会跳过 `status==1` 的视口**（当成"正在编辑的活动视口"）
+   → 图纸空间只出图框、视口里空白。渲染前把 status 临时改成 **2**（只改内存，不写盘）。
+3. **不要靠缩字号硬塞说明**。一页 A3 说明栏只有 ~55 行容量，整套建筑说明 100+ 行；
+   压到 1.8mm 是"页面不溢出但印出来读不出"的假达标。正确做法是**分页**（下限 2.5mm）。
+
+### 成品图幅预览
+
+```python
+DXFToImage().export("x.dxf", "png", {"space": "paper"})              # 自动挑带视口的布局
+DXFToImage().export("x.dxf", "png", {"space": "paper", "layout": "GB_A3_说明2"})
+```
+
+`space='model'`（默认）看图形本体；`space='paper'` 看**打印出来的样子**。
+流水线 `do_render=True` 时两者都出（`render.png` + `sheet.png` / `sheet2.png`）。
+
+### 验证
+
+`examples/verify_layout_notes.py` —— **69 项全过**（8 组：说明栏几何 / 视口换算 / 落点 /
+分页 / 成品图幅渲染 / 向后兼容 / auto_fit / 主链集成）。
+
+### 历史断点：`verify_pipeline_v115` 的 PNG 体积断言已改判据
+
+原断言 `>50KB` 是按"模型空间含巨型文字柱"校准的；说明书搬走后渲染从 ~377KB 降到 ~48KB
+（图形反而占满画面）——是变好不是回归。现改为「体积落在区间 + 模型 bbox 高度 <25000mm」。
+
+---
+
+## 图纸空间渲染的布局选取 + 识图读取通用化（v1.17.1）
+
+### 一、布局选取规则（`interfaces.DxfRenderer._pick_paper_layout`）
+
+渲染 `space='paper'` 时按以下**固定优先级**挑布局，规则写死、不随调用变化：
+
+| 顺序 | 条件 | 结果 |
+|---|---|---|
+| 1 | 显式传入 `layout='名字'` 且该布局存在 | 用它 |
+| 2 | 显式传入名字但**找不到** | 返回 `None` → 上游回退到模型空间渲染 |
+| 3 | 未传名字，且存在**带 VIEWPORT** 的布局 | 取第一个带视口的（那才是真正出图的图幅） |
+| 4 | 未传名字，且没有任何带视口的布局 | 取**最后一个非 Model 布局** |
+| 5 | 一个非 Model 布局都没有 | 返回 `None` |
+
+要点：
+- `doc.layouts` 的第一个永远是 `'Model'`，它**不是**图纸空间，必须排除。
+- 判据是"**有没有 VIEWPORT 实体**"，不是布局名字/顺序——图纸空间可以有很多个
+  （本技能的分页说明续页就是），靠名字猜会挑错。
+
+### 二、⚠️ 视口 `status==1` 会被渲染器丢掉（已核对源码）
+
+ezdxf 渲染器**不画** `status==1` 的视口，表现为：图纸空间只出图框、视口内一片空白。
+
+出处（ezdxf 1.4.4 逐行核对）：
+`ezdxf/addons/drawing/frontend.py :: _draw_viewports()`
+
+```python
+viewports.sort(key=lambda e: e.dxf.status)
+viewports = [vp for vp in viewports if vp.dxf.status > 0]
+if viewports[0].dxf.get("status", 1) == 1:
+    viewports.pop(0)          # ← 就是这一行丢掉了 status==1 的视口
+```
+
+其上方原注释说明：`status==1` 表示 *the active viewport*，它
+*determines how the paperspace layout is presented as a whole*，
+所以 ezdxf 认为不必再单独绘制。**但 `1` 恰恰是磁盘上 AutoCAD 标准文件的正常值。**
+
+**处理方式**：仅在**内存副本**中临时把 `status` 抬到 `2` 让渲染器愿意画它。
+渲染结束不回写、不保存 —— 磁盘 DXF 保持 `status=1`，
+AutoCAD 及其他软件打开行为不受影响。
+
+### 三、识图读取通用化（外部真实图纸）
+
+面对外部软件转出的真实 DXF，`drawing_reader` 做了三项健壮性修复：
+
+| 问题 | 现象 | 处理 |
+|---|---|---|
+| 中文名被写成 `\U+XXXX` 转义 | 图层名变成 `IRC\U+5929\U+82B1`，按图层名匹配的规则**静默全不中**（不报错） | `_decode_uesc()` 解码 |
+| 无名图层 / 缺名字的表记录 | ezdxf 加载阶段直接抛 `DXFTypeError`，**读不了** | 跳过无名图层；加载失败自动退 `recover` 模式 |
+| 畸形的 OBJECTS 段 | 严格与 recover 都报错 | `examples/dxf_prepare.py` 剥段预处理 |
+
+配套脚本：
+- `examples/dwg2dxf_convert.py` —— DWG→DXF。**必须用 `CadOutputMode.CONVERT`**；
+  默认的 `RENDER` 会把所有对象渲染成线段（文字炸成 POLYLINE、体积涨约 49 倍）。
+- `examples/dxf_prepare.py` —— DXF 预处理。内部**按 (code, value) 成对解析**，
+  因为 DXF 的"值"行本身可以是 `0`（实测 `281`/`0`、`90`/`0`），
+  按行内容判记录边界会把记录切错位。
+
+### 四、待办
+
+1. **续页图幅命名模板化**：目前硬编码 `'GB_%s_说明%d'`（中文后缀）。应抽成可配置模板
+   （如 `{base}_notes_{n}`），并允许通过参数覆盖命名规则，便于非中文环境/自定义图号体系。
+2. 见文末「② 识图通用化」章节的结论与后续选项。
+
+---
+
+## ② 识图通用化：外部真实图纸实测结论（2026-09-11）
+
+### 样本
+
+素材库 `2026农村自建房别墅设计素材合集` 中随机取 **7 个真实 DWG**（同一套室内设计图，
+含材料表 / 通用剖面图 / 1F / -1F / 2F / 3F / 中央空调新风地暖施工图），
+人工标注图别真值后做评测。
+
+### 一、能做的（已打通，v1.17.1 已落地）
+
+| 环节 | 结论 |
+|---|---|
+| DWG→DXF | ✅ `CadOutputMode.CONVERT`。平均 **8.6 秒/文件**、体积膨胀 **7.8 倍**（均值 21.8MB）→ 182 个文件约 **26 分钟 / 3.9GB** |
+| DXF→可读 | ✅ 预处理 + 容错加载后 **7/7 全部可读**（修复前 2/7 崩或残） |
+| 图层/文字 | ✅ 取出真实图层（120~469 个）与真 TEXT 实体（含坐标） |
+
+> ⚠️ 反面结论：默认的 `CadOutputMode.RENDER` **不可用** —— 会把所有对象渲染成线段，
+> 文字炸成 POLYLINE（图内文字从此只能靠 `get_strings()`），体积 0.26MB→12.7MB（**49 倍**）。
+
+### 二、不能做的（诚实结论）：**识别率不可用**
+
+用技能现成的 `infer_drawing_type` 打这 7 张真实图纸：
+
+| 口径 | 结果 |
+|---|---|
+| 严格正确 | **0 / 7 = 0%** |
+| 宽松正确（同族近似） | **1 / 7 = 14%** |
+| 认错 | **6 / 7 = 86%** ← 识图里最该压到 0 的指标 |
+
+典型错法：材料表→火灾报警图、各层平面→火灾报警图、暖通图→节点大样图。
+
+**⚠️ 一个必须记住的度量教训**：旧口径"识别成功 100%"是**假指标** ——
+它只统计"有没有输出"，不统计"输出对不对"。本样本里它给 100%，
+而真实严格正确率是 0%。**识图评测必须报"认错率"，不能只报"有没有识别"。**
+
+### 三、根因（三条，均已用数据确认）
+
+1. **规则只认自家图层命名**：`TYPE_BY_LAYERS` 匹配的是 `G_WALL`/`G_DOOR` 这套
+   （本技能自己的输出约定），真实图纸用的是 `A建墙`/`IRC灯具` → 图层信号**零命中**。
+2. **模板图例污染**：这批图纸同出一家设计院模板，**189 行图例文字出现在全部 7 个文件里**
+   （火警/排烟/空调风/总平面/大样…），文字信号被图例主导。
+   且**图纸自己的图名"首层平面图"本身就是模板行**（7/7 都有）——
+   批量去模板会把正确答案一起删掉，这是结构性矛盾。
+3. **图层是"文档级"而非"图纸级"**：AutoCAD 图层在整个 DWG 里定义一次，
+   实测 6 张图各带 120~469 个图层且**共享同一套**。
+   所以图层名只能判"这是室内设计图纸集"，**判不出是平面还是剖面**。
+
+### 四、可判别信号在哪（下一步的方向）
+
+在**版式/几何**，不在关键词：
+
+- `01 材料表` 模型空间只有 **262** 个实体（主体在 Layout1 的 734 个）；
+  `03 1F` 模型空间有 **29,361** 个实体 → **实体数量级本身就是强信号**。
+- 材料表 = 表格线框；剖面 = 水平构造层 + 引出线；平面 = 闭合墙线 + 轴网。
+  需要 `LWPOLYLINE`/`HATCH` 的几何统计，本技能已具备（`read()` 有几何量算）。
+
+**但**：调阈值必须建立在足够样本上。**7 张样本调出来的阈值一定是过拟合**，
+需要先抽 **30~50 张**建评测集（统一放 `benchmarks/`），再动规则。
+
+### 五、边界（对外承诺时必须写清）
+
+- ✅ 可承诺：**读得进**外部 DWG/DXF（转换 + 容错加载 + 中文转义解码）。
+- ❌ 不可承诺：**认得出**外部图纸的图别（当前 0~14%，且 86% 会自信认错）。
+- 对自家产物（`dxfkit` 生成、用 `G_*` 图层体系）识别率不受影响，仍按原规则工作。
+
+## 标准图册 templates_atlas 包（v1.17.2 新增 · 扩「能画什么」）
+
+包位置 `scripts/templates_atlas/`（`__init__.py` / `rebar_calc.py` / `pingfa.py`）。
+地基是 `rebar_calc.py`（钢筋计算，按 GB 50010-2010 / 16G101-1 算锚固/搭接/弯钩/保护层/箍筋），
+上层是 `pingfa.py`（平法标注生成器）。后续模块 `node_beam_column / node_stair / node_foundation / node_steel` 按同样模式加。
+
+> `scripts/templates_pingfa.py` 已改为 **`templates_atlas.pingfa` 的薄再导出层**（单一真相源，避免双份实现发散）；其公开 API 名全部保留，examples/verify_pingfa.py 与 SKILL.md 引用不变。
+
+### 〇、三层架构（与 `templates_struct.py` 的分工边界 · 已拍板）
+
+结构施工图「钢筋相关」其实分三层，不要混：
+
+| 层 | 模块 | 画什么 | 标准 |
+|---|---|---|---|
+| ① 通用构件配筋 | `templates_struct.py`（既有） | 把钢筋一根根画出来（单构件：柱/梁/板/基础/楼梯） | GB/T 50105-2010 |
+| ② 平法注写 | `templates_atlas/pingfa.py`（本包） | 把国标注写符号标在平面上，**不画钢筋** | 16G101-1/2/3 |
+| ③ 标准节点大样 | `templates_atlas/node_*.py`（规划中） | 16G101 规定的**连接构造**（梁柱节点钢筋排布、楼梯梯板配筋、基础插筋锚固、桩基） | 16G101-1/2/3 |
+
+- ① 是「这个构件里钢筋怎么摆」（任意尺寸都能画，通用）。
+- ② 是「图上那串代号是什么意思」（标注语言，不画钢筋）。
+- ③ 是「标准连接处钢筋怎么交圈」（特定节点，强调锚固/搭接/排布构造）。
+三者互补：一张真实结构图通常同时需要 ①构件配筋 + ②平法标注 + ③节点大样。
+
+### 一、六大平法节点（② 层，均按 16G101 规则编码）
+
+| 节点 | 函数 | 国标依据 | 关键注写 |
+|---|---|---|---|
+| 柱 KZ | `column_pingfa_note(ColumnPingfaParams)` | 16G101-1 柱表 | 柱号 / 标高 / `b×h b1 b2 h1 h2` / 角筋 / b边中部筋 / h边中部筋 / 箍筋类型号 `1(4×4)` / 箍筋 |
+| 梁 KL | `beam_pingfa_note(BeamPingfaParams)` | 16G101-1 平面注写 | `KL2(2A) 300×700` / `Φ8@100/200(2)` / `2Φ25` / `G4Φ12` / `(-0.100)` + 原位 `6Φ25 4/2` |
+| 板 LB | `slab_pingfa_note(SlabPingfaParams)` | 16G101-1 板块集中标注 | `LB1 h=120` / `B:X&Y Φ10@200` / `T:X&Y Φ10@200` / 支座原位筋 |
+| 剪力墙 Q | `wall_pingfa_note(WallPingfaParams)` | 16G101-1 墙身 | `Q1 200` / 水平分布筋 / 竖向分布筋 / 拉筋 |
+| 楼梯 AT | `stair_pingfa_note(StairPingfaParams)` | 16G101-2 | `AT1 h=120` / `1800/12=150` / 下部·上部·分布筋 |
+| 独立基础 DJ | `found_pingfa_note(FoundPingfaParams)` | 16G101-3 | `DJj1 2400×2400` / `B:X&Y Φ14@200` / 基础底标高 |
+
+统一签名 `func(b, params, x=0, y=0)`，图层用 `S_PINGFA`(注写) / `S_BEAM` / `S_COLUMN` / `S_SLAB` / `S_WALL` / `S_STAIR` / `S_FOUND`；钢筋符号用 `Φ`。
+梁注写可选 `show_anchor=True`，附 `rebar_calc` 实算的 `laE=`（抗震锚固长度）标注。
+
+### 二、钢筋计算器 `rebar_calc.py`（①/③ 层的地基）
+
+按 16G101-1 第 8.3/8.4 节：
+- `anchorage_length(d, grade, concrete, seismic, level)` → `lab/la/laE`（基本/锚固/抗震锚固）。
+  公式 `lab = α·(fy/ft)·d`，α=0.14(带肋)/0.16(光圆)。
+- `lap_length` → `ll/llE`（搭接，ζl: ≤25%→1.2 / 50%→1.4 / 100%→1.6）。
+- `hook_length` → 弯钩（90°=12d，135°箍筋=max(10d,75)+1.9d，180°=3d+6.25d）。
+- `cover_thickness` → 保护层（16G101-1 表 8.2.1，一类板15/梁20 … 三b 板40/梁50）。
+- `stirrup_length` → 箍筋下料（内皮周长 + 两钩）。
+- 验证：`examples/verify_rebar_calc.py` **26/26 全 PASS**（逐条核对锚固/搭接/弯钩/保护层/箍筋合 GB 50010-2010 / 16G101-1）。
+
+### 三、内置 16G101 自洽校验（返回 `(ok, issues)`）
+
+`validate_column / validate_beam / validate_slab / validate_wall / validate_stair / validate_found`
+能抓出的典型违规（均已写进 `examples/verify_pingfa.py` 53/53 断言）：
+
+- 柱：`b1+b2 ≠ b`、`h1+h2 ≠ h`、箍筋类型号格式非 `类型(列×行)`、角筋格式错。
+- 梁：跨数 <1、箍筋肢数 <2、悬挑标识非 `none/A/B`、**支座上部筋上下排合计 < 上部通长筋根数**、支座筋缺 `上排/下排` 格式。
+- 板：板厚 ≤0、底部/顶部未标双向 `X&Y`、钢筋格式错。
+- 墙：墙厚 ≤0、分布筋格式错。
+- 梯：踏步级数 <1、踏步高越界（不在 100~230）、纵筋格式错。
+- 基：编号非 `DJj/DJp+序号`、底边非正、底部未标双向 `X&Y`。
+
+### 四、节点库（③ 层）设计结论（已拍板 · Q1-Q3）
+
+**Q1 分工边界**：不是「节点大样 vs 配筋图」的二分，而是三层架构（见本节〇）：
+`templates_struct`=通用构件配筋；`pingfa`=平法注写；`node_*.py`=标准连接节点大样。各管一段、互补。
+
+**Q2 复用现有 API**：③ 层节点大样**直接复用** `templates_struct` 的
+`bar()`（双线钢筋）/ `bar_label()`（钢筋标注）/ `hook()`（弯钩）/ `bar_mark()`（编号圈）作基元；
+节点 = bar 排布 + hook 锚固弯折 + bar_label 标注 + 复合箍（bar 画矩形箍+拉筋）。
+不预建新基元；只有某个 16G101 构造确实缺（并筋/螺旋箍/锚固区箍筋加密/柱插筋基础锚固）时，才用现有基元组合或补 1~2 个 helper，缺啥补啥。
+
+**Q3 挂在哪条链**：③ 层节点 = **builder-agnostic 独立函数 `func(b, params, x, y)`**，与 ①/② 一致。
+- 不绑 NL 模糊路由（节点是精确构造，应显式调用 `node_*.draw(b, params, x, y)`）；NL 路由（"画一个300×600框架梁柱节点"→指向 node_*.py）是未来便利项，非 v1 必需。
+- 不绑 `GBDxfBuilder`——国标图框是**输出承载层**、与节点内容正交：调用方想出标准图幅时，传一个 GBDxfBuilder（或先建再往上画节点）即可，节点模板本身不依赖它。
+- 注册表 `PINGFA_NODES` / `PINGFA_VALIDATORS`（③ 层同理加 `NODE_*` 注册表）供 pipeline / NL dispatch 后续发现。
+
+### 五、注册表 & 实测
+
+- `PINGFA_NODES`：`{key: (函数, 参数类)}`，含 6 类；`PINGFA_VALIDATORS` 一一对应；`demo_all(b,x,y)` 一键画全六类。
+- `examples/pingfa_demo.py` → `out_pingfa/pingfa_综合标注.dxf`(98 实体) + `pingfa_全节点.dxf`(98 实体，含 laE 标注)。
+- `examples/verify_pingfa.py` → **53/53**；`examples/verify_rebar_calc.py` → **26/26**。
+- 未改 `dxfkit.py` 与既有模板，**294 项历史验证零回归**（v1.17.2 仅增量）。
+
+---
+
+## ③ 层节点大样收尾 + 续页命名模板化（v1.17.3 收尾）
+
+v1.17.3 干两件事：**把 ③ 层四个节点大样补齐并交付**，以及**把说明续页图幅命名抽成可配置模板**。
+
+### 一、③ 层节点大样（v1.17.2 已建包，v1.17.3 补齐四节点并交付）
+
+`scripts/templates_atlas/` 下四个 `node_*.py`，均为 **builder-agnostic 独立函数** `func(b, params, x=0, y=0)`，
+复用 `templates_struct.bar()/hook()/bar_label()/bar_mark()` 作基元，锚固长度 `laE` 实算自 `rebar_calc.anchorage_length`：
+
+| 节点 | 函数 | 国标 | 画什么 |
+|---|---|---|---|
+| 框架梁柱节点 | `node_beam_column.node_beam_column(BeamColumnNodeParams)` | 16G101-1 | 柱纵筋(四角+四周)+核心区箍筋+梁上下纵筋(端部 15d 弯锚)+laE 标注 |
+| AT 梯板支承 | `node_stair.stair_node(StairNodeParams)` | 16G101-2 | 斜梯板+平台梁+下部筋贯通(两端锚入梁)+分布筋+laE |
+| 柱基础插筋 | `node_foundation.foundation_node(FoundationNodeParams)` | 16G101-3 | 独立基础+柱插筋(底部 15d 弯折 a)+laE |
+| 桩基承台锚固 | `node_steel.pile_node(PileNodeParams)` | 16G101-3 | 承台+桩(圆)+桩顶伸入承台(灌注50/预制100)+锚固筋 laE |
+
+`梁柱节点` 是重头戏，参数 `BeamColumnNodeParams` 按桌面规格重写：
+- 节点类型 `node_type`：`middle`(中柱) / `edge`(边柱) / `corner`(角柱) / `top_end`(顶层端) / `top_middle`(顶层中柱)；
+- 截面用 `column_width`/`column_depth`（柱宽/柱深），梁用 `beam_left_*`/`beam_right_*`/`beam_top_*`/`beam_bottom_*`（左/右/上/下四向梁宽高）；
+- 快捷函数 `middle_node(b,cw,cd,bw,bh)` / `edge_node(...)` / `corner_node(...)` 一键出对应节点；
+- `NODE_TEMPLATES` 字典聚合 5 个入口（`node_beam_column`/`beam_column_node`/`middle_node`/`edge_node`/`corner_node`）；
+- `validate_beam_column(p)` 抓柱纵筋非 4 倍数、抗震等级越界(0~4)、节点类型未知等。
+
+**API 适配说明（桌面规格用了 3 个不存在的 builder 名，已按 dxfkit 真实 API 改写）**：
+- 填充：`b.add_hatch(pts, pattern, scale, angle, layer)`（**第 4 参是 angle 不是 layer**，指定图层必须 `layer=` 关键字）；
+- 线段：`b.line(x1,y1,x2,y2,layer=)`（**不是** `add_line`）；
+- 尺寸：`b.dim_h(y,x0,x1,label,off,layer)` / `b.dim_v(x,y0,y1,label,off,layer)`（**不是** `add_dimension`）。
+
+`templates_atlas.NODES` 注册表聚合四节点：`{key:(draw, Params, validate, doc)}`（`beam_column`/`stair`/`foundation`/`pile`），供 pipeline / NL 后续发现。
+`examples/node_demo.py` → `out_nodes/nodes_综合大样.dxf`（四节点同图，216 实体）；
+`examples/verify_nodes.py` → **29/29**；`examples/verify_node_beam_column.py` → 节点类型/参数/laE 三组全过。
+
+### 二、续页命名模板化（① · 替掉硬编码中文后缀）
+
+`scripts/gb_standards.py` 现在暴露：
+- 模块级模板 `NOTE_SHEET_NAME_TEMPLATE = "{base}_notes_{n}"`（默认 → `GB_A3_notes_2`）；
+- 模块函数 `get_note_sheet_name(base, paper, n, title="", template=None)`；
+- 类方法 `BorderStandard.note_sheet_name(cls, base, paper, n, title="", template=None)`。
+
+`natural_language_engine._draw_notes_pages` 已从硬编码 `'GB_%s_说明%d' % (paper, idx+1)` 改为调用
+`BorderStandard.note_sheet_name(base="GB_%s"%paper, paper=paper, n=idx+1, title=td.get('title',''))`。
+支持通过 `template=` 覆盖命名规则（向后兼容：传 `template="GB_{paper}_说明{n}"` 即回退旧中文命名 `GB_A3_说明2`），
+便于非中文环境 / 自定义图号体系。`examples/verify_continuation.py` → **7/7**。
+
+### 三、总验证（v1.17.3 零回归）
+
+```
+294（历史：verify_layout_notes 69 / verify_v114 60 / verify_pipeline_v115 57 /
+     verify_nl 46 / verify_v115 37 / verify_interfaces 21 / verify_pipeline 4）
++ 53（verify_pingfa）
++ 26（verify_rebar_calc）
++ 29（verify_nodes）
++  7（verify_continuation）
++  verify_node_beam_column（节点类型/参数/laE 三组）
+= 402+ 项零 FAIL
+```
+
+> ⚠️ `node_beam_column` 直跑脚本时原 `from .rebar_calc` 相对导入会失败；文件已加
+> `try: from .rebar_calc ... except ImportError: from templates_atlas.rebar_calc ...` 兜底，
+> 且 `__main__` 的 `sys.path` 已指向包根，故 `python node_beam_column.py` 可直跑自测（中柱 55 / 边柱 53 / 角柱 41 实体）。
+
+---
+
+## ③ 层节点大样接入自然语言路由（v1.17.4 收尾）
+
+v1.17.3 把 ③ 层四个标准节点大样**画出来了**；v1.17.4 把它们**接进了 NL 引擎**——
+现在一句「画一个 600x600 柱 300x600 梁的中柱节点」就能直接出图，无需手写 Python。
+
+### 一、接入点（全部落在 `natural_language_engine.py`，不动 builder 继承链）
+
+| 接入位置 | 内容 |
+|---|---|
+| `NLPParser.DRAWING_TYPE_PATTERNS` | 新增 4 条节点关键词（**类属性**，非模块级变量）|
+| `DEFAULT_DIMS_MM` | 新增 4 个 `node_*` 默认尺寸（图框自适应比例用）|
+| `NaturalLanguageGenerator._dispatch` | 新增 4 个 `node_*` → handler 映射（**实例字典**，非 `NL_DISPATCH` 模块变量）|
+| `discipline_map` | 4 个 `node_*` → `structural`（决定自动追加哪套施工说明/规范）|
+
+关键词表（先匹配先赢，**必须排在「基础平面/梁配筋/节点大样」等弱匹配之前**）：
+
+| drawing_type | 触发词 |
+|---|---|
+| `node_beam_column` | 梁柱节点 / 框架梁柱节点 / 框架节点 / 梁柱连接 / 柱梁节点 / 中柱节点 / 边柱节点 / 角柱节点 / 顶层端节点 / 顶层中柱节点 |
+| `node_stair` | 楼梯节点 / 梯板配筋 / 梯板支承 / AT型楼梯 / 梯段节点 |
+| `node_foundation` | 基础节点 / 独立基础 / 承台插筋 / 柱插筋 / 基础插筋 / 基础大样 |
+| `node_pile` | 桩基节点 / 桩基锚固 / 桩承台 / 桩头锚固 / 桩基大样 |
+
+### 二、参数从原文解析（`_parse_node_text`）——柱/梁尺寸的语序问题
+
+中文里柱梁截面有两种写法，且**尺寸对可能被相邻名词夹住**：
+- 「600x600柱300x600梁」← 尺寸在名词**前**（柱被夹在 600x600 与 300x600 之间）
+- 「柱800×800 梁400×800」← 尺寸在名词**后**
+
+**不能用「名词最近中心距」**——第一例里 `柱` 距 `300x600` 更近，会把柱判成 300x600。
+采用的规则是**零间隔相邻 + 尺寸在名词前优先**：
+1. 找出所有 `数x数` 尺寸对及其起止位置；
+2. 对每个尺寸对，判断它与 `柱/KZ`、`梁/KL` 是否**零间隔相邻**（中间无任何字符）；
+3. 一个尺寸对若同时贴着两个名词（如「柱300x600梁」），取「尺寸在名词前」的那个（中文工程简写 `300x600梁` = 梁 300x600）。
+
+其余参数：`node_type`（中柱/边柱/角柱/顶层端/顶层中柱 → middle/edge/corner/top_end/top_middle）、
+`seismic_level`（一~四级/1~4）、`concrete_grade`（C30…）、`rebar_grade`（HRB400…）按正则抽取。
+
+### 三、踩坑与修复（本轮真实报错）
+
+| 坑 | 现象 | 修复 |
+|---|---|---|
+| **函数名不是 `node_xxx`** | `from templates_atlas.node_stair import node_stair` **ImportError** | 真实函数名是 `stair_node` / `foundation_node` / `pile_node`（`node_beam_column.py` 例外，就叫 `node_beam_column`）|
+| **桩基不在 `node_pile.py`** | 无 `node_pile.py` 模块 | 桩基在 **`node_steel.py`**，函数 `pile_node` + `PileNodeParams` |
+| dispatch 表位置 | 原以为是模块级 `NL_DISPATCH`（**不存在**）| 实为 `NaturalLanguageGenerator.__init__` 里的实例字典 `self._dispatch` |
+| 关键词表位置 | 原以为是模块级 `DRAWING_TYPE_PATTERNS` | 实为 **`NLPParser` 的类属性** |
+| 尺寸串字 | 「600x600柱300x600梁」柱被判 300x600 | 改零间隔相邻 + 前置优先（见上）|
+
+> **`pipeline` 无需改**：`SPECIALTY_TEMPLATES` 是空字典且**不在生成路径上**，
+> pipeline 走的是 `generate_from_text` —— 节点接进 NL 引擎即自动覆盖 pipeline。
+> 故桌面规格里的 `nl_router_patch.py` / `pipeline_patch.py` 属于**死代码**，未采用；
+> 改为直接进 `natural_language_engine.py`，复用 `templates_atlas` 单一真相源，无循环导入风险。
+
+### 四、验证
+
+`examples/verify_node_routing.py`（新增）四组共 **23 项断言**全绿：
+
+| 组 | 内容 | 结果 |
+|---|---|---|
+| [1] 路由 | 5 句中文 → 正确 drawing_type + 有效 DXF | 5/5 ✅ |
+| [2] 参数 | 柱/梁尺寸两种语序 + 节点类型 | 5/5 ✅ |
+| [3] 注册 | `_dispatch` 4 键 + `NLPParser.DRAWING_TYPE_PATTERNS` 4 键 | 8/8 ✅ |
+| [4] 不破坏既有 | 平面/梁配筋/钢柱/檐口大样/U 型楼梯详图 仍正常路由 | 5/5 ✅ |
+
+示例：`画一个600x600柱300x600梁的中柱节点` → `node_beam_column`，柱 600x600 / 梁 300x600 / 中柱。
+`生成边柱梁柱节点` → `node_beam_column`（边柱）；`AT型楼梯节点` → `node_stair`；
+`独立基础柱插筋节点` → `node_foundation`；`桩基锚固节点` → `node_pile`。
+
+---
+
+## 钢结构节点扩展 + 识图评测集 + 统一验证入口（v1.17.4 · B/C/D 路线）
+
+### D · 钢结构连接节点 `templates_atlas/node_steel_v2.py`
+
+补 `node_pile.py`（只有混凝土桩基承台；**原名 `node_steel.py`，v1.17.5 重命名为 `node_pile.py` 以消除「steel 名却装桩基」的混名**）的缺口，新增**钢结构三类常用连接节点**，
+约定与 ③ 层一致（builder-agnostic 独立函数 + dataclass 参数 + `validate_*`）：
+
+| 节点 | 函数 / 参数 | 依据 | 画什么 |
+|---|---|---|---|
+| 钢柱脚 | `steel_column_base(SteelColumnBaseParams)` | GB 50017-2017 / 16G519 | 底板 + 二次浇筑层 + 工字形柱身 + 加劲肋（刚接）+ 锚栓（铰接 4 栓 / 刚接 8 栓）+ 锚固段 |
+| 钢梁柱节点 | `steel_beam_column(SteelBeamColumnParams)` | GB 50017-2017 / 16G519 | 工字形柱 + 工字形梁 + 端板 + 翼缘焊缝（全/部分熔透）+ 腹板高强螺栓双列 |
+| 钢梁拼接 | `steel_beam_splice(SteelBeamSpliceParams)` | GB 50017-2017 / 16G519 | 左右两段工字形梁 + 翼缘/腹板拼接板 + 高强螺栓（翼缘两列 + 腹板一排） |
+
+- 注册表 **`STEEL_NODES`**（3 项）**独立于 `NODES`** —— 因为 `verify_nodes.py` 断言 `len(NODES)==4`，
+  并入会破坏既有验证；`templates_atlas.STEEL_NODES` 已导出。
+- **NL 路由**：新增 3 类图别 `node_steel_base` / `node_steel_beam_column` / `node_steel_splice`。
+  ⚠️ **顺序敏感**：钢结构规则必须**先于混凝土节点**，因为「钢梁柱节点」含子串「梁柱节点」，
+  否则会被 `node_beam_column` 抢走（实测踩过）。
+- `examples/verify_steel_nodes.py` → **24/24**；`python scripts/templates_atlas/node_steel_v2.py` 可直跑自测
+  （实体 27/29/31，反例各抓 ≥3 条）。
+
+### B · 识图评测集 `benchmarks/`
+
+| 文件 | 作用 |
+|---|---|
+| `benchmarks/ground_truth.json` | 真值表：`file / type / family(同族) / oov(是否在类型域) / source` |
+| `benchmarks/eval.py` | 评测脚本，用真实 API `drawing_reader.read(path).drawing_type` |
+| `benchmarks/import_samples.py` | 把外部 DXF 按逻辑名拷进 `raw/`（`raw/` 已 .gitignore，136MB 不入库） |
+| `benchmarks/README.md` | 口径、基线、根因、边界 |
+
+**四口径**：严格正确 / 宽松正确 / 正确拒识（OOV 真值下拒识=合格）/ **认错**。
+> ⚠️ **度量纪律**：旧口径「识别成功 100%」是**假指标**（只数"有没有输出"，不数"对不对"）——
+> 本项目实测可同时成立「识别成功 100%」与「严格正确 0%」。改规则必须给 before/after **认错率**。
+
+**7 张真实图纸基线（v1.17.1 复现）**：严格 0/7 (0%) · 宽松 1/7 (14.3%) · **认错 6/7 (85.7%)**。
+根因：① 规则只认自家图层命名（真实图纸用 `A建墙`/`IRC灯具` → 零命中）；
+② 模板图例污染（189 行图例文字出现在全部 7 个文件，且图名"首层平面图"本身是模板行）；
+③ 图层是"文档级"判不出图纸级。**可判别信号在版式/几何**（`01 材料表` 模型空间 262~996 实体
+vs `03 1F` 29,361 实体）。
+> 样本 <30 张时任何阈值都是过拟合 → **先扩样本（30~50 张）再改规则**。
+
+### C · 统一验证入口 `examples/verify_all.py`
+
+```bash
+cd C:\Users\binliu8199\.workbuddy\skills\dxf-generator
+python examples/verify_all.py              # 全部
+python examples/verify_all.py nl nodes     # 只跑名字含 nl / nodes 的
+python examples/verify_all.py --list       # 列出
+python examples/verify_all.py --json       # 机器可读（CI 用）
+```
+
+判定口径（**顺序重要**）：① 显式计数（`PASS n / FAIL m`、`通过 n/m`…）；
+② 明确失败语（`存在失败`/`失败 n`/`FAIL n`/`问题项: 有`）；
+③ **明确通过语优先于标记计数**（`验证通过`/`全部通过`/`端到端管线健康`）；
+④ 兜底数 ✅/❌。
+> ⚠️ 第 ③ 条是踩坑后加的：最初只用「数 ❌」，`verify_fonts` 因列出 6 个**本机未安装的字体候选**
+> 打了 6 个 ❌ 被误判为 6 项失败（脚本自身输出其实是「✅ 验证通过」）——探测类 ❌ ≠ 失败。
+> 自动发现新增 `verify_*.py`（排除自身防递归），rc 也参与判定。
+
+## v1.17.5 收口（E5 规范库 + E4 命名 + 说明栏可读下限修复）
+
+### E5 · 16G101 接入规范引用库（`construction_codes.py`）
+- **根因**：旧 `get_codes_by_drawing_type` 只匹配 `'all' in applicability or drawing_type in applicability`，
+  具体名图别（`node_beam_column` / `node_pile` / `node_steel_base` …）无法命中**语义标签**
+  （`structural`/`beam`/`column`/`foundation`），导致节点图连 GB 50010 / GB 50204 / 16G101 都漏引。
+- 新增 `PINGFA_CODES`（16G101-1/2/3 平法图集，priority=1 强条），并入 `ALL_CODES`
+  → 规范库 **64 条×13 类 → 67 条×14 类**。
+- 新增 `DRAWING_TYPE_ALIASES`，把具体名图别归一为语义标签，匹配逻辑 = `drawing_type` 精确 / `'all'` / 别名 三者任一命中。
+- 节点图（梁柱/楼梯/基础/桩基/钢柱脚）生成后「执行规范」自动含 16G101；`examples/verify_e5.py` **21/21**。
+
+### E4 · `node_steel.py` 重命名为 `node_pile.py`
+- 该文件装的是**混凝土桩基**节点（函数 `pile_node`/`PileNodeParams`），原名 `node_steel` 与钢结构混名。
+- 用 `mv` 改名（非 git 跟踪，避免 `git mv` 报错），同步更新 `templates_atlas/__init__.py`、
+  `natural_language_engine.py`、`examples/node_demo.py`、`examples/verify_nodes.py` 共 4 处引用。
+- ⚠️ 钢结构节点仍在 `node_steel_v2.py`（`STEEL_NODES` 注册表），**未受影响**。
+
+### 说明栏「执行规范」可读下限回归修复
+- **现象**：E5 别名修复后 `floor_plan` 匹配规范从 3 条涨到 20+ 条，`natural_language_engine._add_notes_to_sheet`
+  把规范块预留高度封顶 42%（≈90mm，真实 ~105mm），逼 `add_code_references` 的 `auto_fit` 把字高压到 2.2mm（< 2.5mm 可读下限）。
+- **修复**：① 预留高度封顶 0.42→0.6，让 `code_h` 贴近真实块高、不再逼压缩；
+  ② `add_code_references` 的 `min_base_height` 3.0→**5.0**（规范清单最小字高 = base 的 0.5 倍，
+  5.0×0.5=2.5mm 恰为 GB/T 50001 可读下限），从根上守住「宁可截断/分页也不压字到读不出」。
+- `examples/verify_layout_notes.py` **70/70**（原 69/70，字高断言修复）。
+
+**最终总验证（v1.17.5）：19 套件全绿 · 469 项可计数断言 · 0 失败**（约 2 分 50 秒）：
+续页命名 7 · e5 — · 字体 — · 全量扩展 — · 接口层 21 · 布局+说明栏 70 · 自然语言 46 ·
+梁柱节点 12 · 节点路由 23 · ③层节点 29 · 说明全套 — · 平法 53 · 端到端渲染 4 ·
+NL 流水线 57 · 钢筋计算 26 · 钢结构节点 24 · 识图/算量/说明 60 · 3D 体量 37 ·
++ 高级模板+审图（无计数，按判定语通过）。

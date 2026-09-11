@@ -43,16 +43,22 @@ __version__ = "1.12.0"
 _CJK_FONT_CACHE: Dict[str, Optional[str]] = {}
 
 # matplotlib 能吃的中文 TrueType 字体（按优先级）
+#
+# ⚠️ SimSun(simsun.ttc) 内含**点阵位图**，matplotlib/Agg 在约 5~6pt 的字号带
+#    会整行中文渲染成空白（实测黑像素 = 0，而 ASCII 正常）。施工说明这类密排
+#    小字正好落在这个带里 → 中文凭空消失。因此把 SimSun 降到最后兜底，
+#    优先选无点阵位图的 msyh / simhei / Deng / simkai / simfang。
+#    （实测各字号黑像素：simsun 在 5pt/6pt = 0；其余字体均正常出字。）
 _MPL_CJK_CANDIDATES = [
-    'simsun.ttc', 'SimSun.ttc',
-    'simhei.ttf', 'SimHei.ttf',
-    'simfang.ttf', 'FangSong.ttf',
-    'simkai.ttf', 'KaiTi.ttf',
     'msyh.ttc', 'Microsoft YaHei.ttf', 'msyhbd.ttc',
-    'DengXian.ttf',
+    'simhei.ttf', 'SimHei.ttf',
+    'Deng.ttf', 'DengXian.ttf',
+    'simkai.ttf', 'KaiTi.ttf',
+    'simfang.ttf', 'FangSong.ttf',
     'NotoSansCJK-Regular.ttc',
     'NotoSerifCJK-Regular.ttc',
     'SourceHanSansCN-Regular.otf',
+    'simsun.ttc', 'SimSun.ttc',          # 兜底：有点阵位图，小字号可能丢字
 ]
 
 _FONT_DIRS = [
@@ -124,8 +130,59 @@ def cjk_font_family() -> str:
     path = get_cjk_font_path()
     if path:
         fam = os.path.splitext(os.path.basename(path))[0]
-        return f'"{fam}", SimSun, SimHei, "Microsoft YaHei", sans-serif'
-    return 'SimSun, SimHei, "Microsoft YaHei", sans-serif'
+        return (f'"{fam}", "Microsoft YaHei", SimHei, '
+                f'"DengXian", KaiTi, FangSong, sans-serif')
+    return ('"Microsoft YaHei", SimHei, "DengXian", KaiTi, '
+            'FangSong, sans-serif')
+
+
+def check_cjk_font_sizes(sizes=(3, 4, 5, 6, 7, 8, 10, 12, 16)):
+    """体检当前中文字体在各字号下**是否真的画出字形**。
+
+    背景（真实踩过的坑）：SimSun(``simsun.ttc``) 内含点阵位图，
+    matplotlib/Agg 在约 5~6pt 的字号带会把整行中文渲染成**空白**
+    （黑像素 = 0），而 ASCII 正常、且**不抛任何异常**。施工说明这类
+    密排小字正好落在该字号带 → 中文凭空消失，极难发现。
+
+    本函数把这类"静默丢字"变成可断言检查，供验证脚本与 CI 使用。
+
+    Returns:
+        dict: ``{'font': 路径, 'sizes': (...), 'blank': [丢字的字号], 'ok': bool}``
+    """
+    import io as _io
+
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    fp = get_cjk_font_properties()
+    path = get_cjk_font_path()
+    blank = []
+    if fp is None:
+        return {'font': None, 'sizes': tuple(sizes), 'blank': list(sizes),
+                'ok': False, 'reason': '未找到可用中文字体'}
+
+    for s in sizes:
+        fig = plt.figure(figsize=(3.0, 0.7))
+        ax = fig.add_subplot(111)
+        ax.axis('off')
+        ax.text(0.02, 0.5, '本工程图纸尺寸', fontsize=s,
+                fontproperties=fp, va='center', ha='left')
+        buf = _io.BytesIO()
+        fig.savefig(buf, format='png', dpi=200, facecolor='white')
+        plt.close(fig)
+        buf.seek(0)
+        try:
+            img = plt.imread(buf)          # float RGBA 0~1
+            dark = int((img[:, :, :3].min(axis=2) < 0.5).sum())
+        except Exception:
+            dark = -1
+        if dark <= 0:
+            blank.append(s)
+
+    return {'font': path, 'sizes': tuple(sizes), 'blank': blank,
+            'ok': not blank}
 
 
 # ============================================================
@@ -176,14 +233,53 @@ class DXFToImage:
             if cjk_prop is not None and get_cjk_font_path():
                 fam = os.path.splitext(
                     os.path.basename(get_cjk_font_path()))[0]
-                plt.rcParams['font.sans-serif'] = [fam, 'DejaVu Sans']
+                plt.rcParams['font.sans-serif'] = [
+                    fam, 'Microsoft YaHei', 'SimHei', 'DejaVu Sans']
                 plt.rcParams['axes.unicode_minus'] = False
 
             doc = ezdxf.readfile(dxf_file)
             msp = doc.modelspace()
 
+            # ---- 渲染哪个空间？（v1.17.0 新增图纸空间预览） ----
+            # space='model'（默认）→ 模型空间，看图形本体；
+            # space='paper'        → 图纸空间，出**成品图幅**（图框+标题栏+说明栏+
+            #                        视口内的图形），也就是打印出来的样子。
+            space = str(config.get('space', 'model')).lower()
+            target = msp
+            if space in ('paper', 'paperspace', 'layout', 'sheet'):
+                target = self._pick_paper_layout(doc, config.get('layout'))
+                if target is None:
+                    target = msp
+                    space = 'model'
+                else:
+                    # ⚠️ 关键坑：ezdxf 渲染器会把 **status==1** 的视口当成
+                    # "正在编辑的活动视口"而丢弃，结果图纸空间只画出图框、
+                    # 视口里一片空白。
+                    #
+                    # 出处（ezdxf 1.4.4，已逐行核对）：
+                    #   ezdxf/addons/drawing/frontend.py :: _draw_viewports()
+                    #       viewports.sort(key=lambda e: e.dxf.status)
+                    #       viewports = [vp for vp in viewports if vp.dxf.status > 0]
+                    #       if viewports[0].dxf.get("status", 1) == 1:
+                    #           viewports.pop(0)      # ← 就是这个 pop 丢掉了它
+                    #   其上方注释写明：status==1 表示"the active viewport"，
+                    #   它"determines how the paperspace layout is presented as a whole"，
+                    #   所以 ezdxf 认为无需再单独绘制它。
+                    #   但"1"恰恰是**磁盘上 AutoCAD 标准文件的正常值**。
+                    #
+                    # 处理：只在**内存副本**里把 status 抬到 2，让渲染器愿意画它。
+                    # 渲染完不回写、不保存 —— 磁盘 DXF 保持 status=1 原样，
+                    # 不影响 AutoCAD 及其他软件打开。
+                    for _v in target:
+                        try:
+                            if _v.dxftype() == 'VIEWPORT' and \
+                                    _v.dxf.get('status', 0) == 1:
+                                _v.dxf.status = 2
+                        except Exception:
+                            continue
+
             # bbox 兜底
-            bbox = self._get_bbox(msp)
+            bbox = self._get_bbox(target)
             if not bbox:
                 bbox = (0, 0, 1000, 1000)
             min_x, min_y, max_x, max_y = bbox
@@ -203,20 +299,31 @@ class DXFToImage:
             )
             Frontend(
                 RenderContext(doc), backend, config=cfg,
-            ).draw_layout(msp, finalize=True)
+            ).draw_layout(target, finalize=True)
 
             ax.set_aspect('equal', adjustable='box')
-            ax.set_xlim(min_x - w * 0.05, max_x + w * 0.05)
-            ax.set_ylim(min_y - h * 0.05, max_y + h * 0.05)
+            _marg = 0.02 if space != 'model' else 0.05
+            ax.set_xlim(min_x - w * _marg, max_x + w * _marg)
+            ax.set_ylim(min_y - h * _marg, max_y + h * _marg)
             ax.axis('off')
 
             # 文本：DXF height 是"数据单位"，换算成 pt 才不会爆炸/消失。
-            # pts = height_data * 72 * fig_h_inch / y_range
+            # pts = height_data * 72 * axes_h_inch / y_range
+            # 注意：必须用 **实际坐标轴高度**，不能用 fig_h。
+            # set_aspect('equal', adjustable='box') 会把坐标轴盒子缩小到
+            # subplot 区域内，此时真实数据→英寸比例小于 fig_h/range；
+            # 若仍按 fig_h 换算，字号会被整体放大（实测 2.3 倍）→
+            # 施工说明那种密排行距就被吃掉了，看起来糊成一团。
+            fig.canvas.draw()          # 先让 matplotlib 完成布局
+            try:
+                _ax_in = ax.get_window_extent().height / fig.dpi
+            except Exception:
+                _ax_in = fig_h
             ylim = ax.get_ylim()
-            pts_per_unit = 72.0 * fig_h / max(ylim[1] - ylim[0], 1e-6)
+            pts_per_unit = 72.0 * _ax_in / max(ylim[1] - ylim[0], 1e-6)
             import re as _re
             from font_manager import FontConfig
-            for e in msp:
+            for e in target:
                 try:
                     t = e.dxftype()
                     if t == 'TEXT':
@@ -266,7 +373,8 @@ class DXFToImage:
                         facecolor='white')
             plt.close(fig)
             return {'success': True, 'format': fmt, 'file': out_file,
-                    'dpi': dpi, 'entities': len(list(msp))}
+                    'dpi': dpi, 'entities': len(list(target)),
+                    'space': space}
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
@@ -277,6 +385,35 @@ class DXFToImage:
     # ---------- PDF（统一管线） ----------
     def _to_pdf(self, dxf_file: str, output: str, config: Dict) -> Dict:
         return self._to_raster(dxf_file, output, 'pdf', config)
+
+    @staticmethod
+    def _pick_paper_layout(doc, name: Optional[str] = None):
+        """挑一个**图纸空间**布局用于预览渲染。
+
+        规则：显式给了 name 就用它（找不到返回 None）；
+        否则优先带 VIEWPORT 的布局（那才是真正出图的图幅），
+        再退到最后一个非 Model 的布局；一个都没有返回 None。
+        说明：`doc.layouts` 里第一个是 'Model'，它不是图纸空间。
+        """
+        try:
+            layouts = [l for l in doc.layouts
+                       if str(l.name).lower() != 'model']
+        except Exception:
+            return None
+        if not layouts:
+            return None
+        if name:
+            for l in layouts:
+                if l.name == name:
+                    return l
+            return None
+        for l in layouts:
+            try:
+                if any(e.dxftype() == 'VIEWPORT' for e in l):
+                    return l
+            except Exception:
+                continue
+        return layouts[-1]
 
     @staticmethod
     def _get_bbox(msp) -> Optional[Tuple[float, float, float, float]]:

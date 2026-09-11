@@ -53,6 +53,16 @@ class NLPParser:
         # v1.13.0：给水/排水系统图（"排水系统图"含"图"但不含"排水图"）
         (r'(给水系统|供水系统|排水系统|污水系统|给水立管|排水立管)', 'plumbing'),
         (r'(防排烟系统|排烟系统)', 'smoke_exhaust'),
+        # ---- v1.17.4 ③层标准节点大样（16G101 连接构造，真画钢筋）----
+        # ⚠️ 顺序敏感：「钢结构」类节点必须先于混凝土节点，因为
+        #   「钢梁柱节点」含子串「梁柱节点」，若混凝土规则在前会被 node_beam_column 抢走。
+        (r'(钢梁柱节点|钢框架节点|钢框架梁柱节点|栓焊混接|钢梁柱连接)', 'node_steel_beam_column'),
+        (r'(钢梁拼接|梁拼接节点|高强螺栓拼接|翼缘拼接|钢梁拼接节点)', 'node_steel_splice'),
+        (r'(钢柱脚|柱脚节点|锚栓柱脚|柱脚大样)', 'node_steel_base'),
+        (r'(梁柱节点|框架梁柱节点|框架节点|梁柱连接|柱梁节点|中柱节点|边柱节点|角柱节点|顶层端节点|顶层中柱节点)', 'node_beam_column'),
+        (r'(楼梯节点|梯板配筋|梯板支承|AT型楼梯|梯段节点)', 'node_stair'),
+        (r'(基础节点|独立基础|承台插筋|柱插筋|基础插筋|基础大样)', 'node_foundation'),
+        (r'(桩基节点|桩基锚固|桩承台|桩头锚固|桩基大样)', 'node_pile'),
         (r'(基础平面|基础图)', 'foundation'),
         (r'(梁配筋|柱配筋|板配筋|框架梁|配筋图)', 'structural'),
         (r'(钢结构|钢柱|钢梁)', 'steel'),
@@ -270,6 +280,15 @@ DEFAULT_DIMS_MM = {  # 默认尺寸，单位 mm
     'electrical':    (15000, 10000, 0),
     'plumbing':      (2400, 1800, 0),
     'structural':    (12000, 8000, 0),
+    # ---- v1.17.4 ③层标准节点大样 默认尺寸 ----
+    'node_beam_column': (3000, 2000, 2000),
+    'node_stair':    (2000, 4000, 1500),
+    'node_foundation': (3000, 3000, 1500),
+    'node_pile':     (2500, 2500, 1500),
+    # v1.17.4 钢结构节点
+    'node_steel_base':        (1500, 1500, 1500),
+    'node_steel_beam_column': (3000, 2000, 1500),
+    'node_steel_splice':      (2500, 1200, 800),
 }
 
 
@@ -300,6 +319,15 @@ class NaturalLanguageGenerator:
             'intelligent':      self._gen_intelligent,
             'smoke_exhaust':    self._gen_smoke_exhaust,
             'rain_water':       self._gen_rain_water,
+            # ---- v1.17.4 ③层标准节点大样 ----
+            'node_beam_column': self._gen_node_beam_column,
+            'node_stair':       self._gen_node_stair,
+            'node_foundation':  self._gen_node_foundation,
+            'node_pile':        self._gen_node_pile,
+            # v1.17.4 钢结构节点
+            'node_steel_base':        self._gen_node_steel_base,
+            'node_steel_beam_column': self._gen_node_steel_beam_column,
+            'node_steel_splice':      self._gen_node_steel_splice,
         }
 
     # ---- 工具：把 NL 解析出的尺寸 → 模板要求的 mm 字段 ----
@@ -330,10 +358,15 @@ class NaturalLanguageGenerator:
     def generate(self, text: str, filename: str = "nl_output.dxf",
                 add_sheet: bool = True,
                 paper_size: str = "A3",
-                title_data: Optional[Dict] = None) -> Dict:
+                title_data: Optional[Dict] = None,
+                notes_in_layout: Optional[bool] = None) -> Dict:
         """自然语言 → DXF。
-        add_sheet=True（默认）会 在最后自动套 GB 国标图框 + 标题栏 + 1:100 视口
+        add_sheet=True（默认）会 在**最前面**套 GB 国标图框 + 标题栏 + 1:100 视口
         （依赖 builder.add_gb_sheet —— 我们的 GBDxfBuilder/CodeAwareDxfBuilder/NLAware 链全具备）。
+
+        notes_in_layout: 施工说明的落点。
+            None（默认）→ 有图框就进图纸空间说明栏，无图框则退模型空间；
+            True/False   → 强制进图纸空间 / 强制留模型空间。
         """
         parsed = self.parser.parse(text)
         dtype = parsed.get('drawing_type') or 'floor_plan'
@@ -346,7 +379,55 @@ class NaturalLanguageGenerator:
         except Exception as e:
             return {'ok': False, 'error': f'dispatch 失败 [{dtype}]: {e}',
                     'parsed': parsed, 'filename': filename}
-        # 自动追加：施工说明 + 规范引用（如果 builder 有这两个能力）
+        # ---- [1] 先建 GB 国标图框（图纸空间）+ 1:100 视口 ----
+        # 顺序很重要：以前是「先写说明、后建图框」，说明只能落在模型空间；
+        # 现在必须先有 Layout 才能把说明写进它的说明栏（target=layout）。
+        sheet_layout = None
+        if add_sheet and hasattr(self.builder, 'add_gb_sheet'):
+            try:
+                from gb_standards import BorderStandard
+                # 自动定比例 + 自动居中：量模型包围盒 → 挑能装进视口的标准比例。
+                # 这样"12x8米住宅"不会再因为写死 1:100 而缩成图框里的一小块。
+                _scale, _vc, _ext_info = 1 / 100, None, None
+                try:
+                    from ezdxf import bbox as _bbox
+                    _ext = _bbox.extents(self.builder.msp)
+                    if _ext.has_data:
+                        _mw = _ext.extmax.x - _ext.extmin.x
+                        _mh = _ext.extmax.y - _ext.extmin.y
+                        _vc = ((_ext.extmin.x + _ext.extmax.x) / 2.0,
+                               (_ext.extmin.y + _ext.extmax.y) / 2.0)
+                        _scale = BorderStandard.fit_scale(_mw, _mh, paper_size)
+                        _ext_info = [round(_mw, 1), round(_mh, 1)]
+                except Exception:
+                    pass
+                td = {
+                    'project':  'NL-Demo',
+                    'title':    parsed.get('drawing_type', '示例图纸'),
+                    'scale':    BorderStandard.scale_label(_scale),
+                    'drawing_no': f'NL-{parsed.get("drawing_type", "")[:3].upper()}-01',
+                    'date':     '2026',
+                    'designer': 'NL',
+                    'checker':  '—',
+                    'approver': '—',
+                }
+                if title_data:
+                    td.update(title_data)       # 调用方显式给了就以调用方为准
+                sheet_layout = self.builder.add_gb_sheet(
+                    paper_size=paper_size, title_data=td,
+                    view_center=_vc, scale=_scale)
+                result['sheet_layout'] = str(sheet_layout.name)
+                result['paper_size'] = paper_size
+                result['view_scale'] = BorderStandard.scale_label(_scale)
+                result['model_extents'] = _ext_info
+            except Exception as e:
+                result['sheet_error'] = str(e)
+
+        # ---- [2] 施工说明 + 规范引用 ----
+        # 落点策略（v1.17.0 起）：
+        #   A. 有图框 → 写进**图纸空间说明栏**（图纸毫米，字高 3mm 级），
+        #      模型空间保持干净 —— 不再有 34500mm 高的文字柱；
+        #   B. 无图框 → 退回模型空间右侧空白区（旧行为，仍然可用）。
         try:
             discipline_map = {
                 'floor_plan': 'architectural', 'elevation': 'architectural',
@@ -359,34 +440,20 @@ class NaturalLanguageGenerator:
                 'rain_water': 'plumbing', 'electrical': 'electrical',
                 'plumbing': 'plumbing', 'structural': 'structural',
                 'steel': 'structural', 'foundation': 'structural',
+                'node_beam_column': 'structural', 'node_stair': 'structural',
+                'node_foundation': 'structural', 'node_pile': 'structural',
+                'node_steel_base': 'structural',
+                'node_steel_beam_column': 'structural',
+                'node_steel_splice': 'structural',
             }
             disc = discipline_map.get(dtype, 'architectural')
-            if hasattr(self.builder, 'add_construction_notes_by_discipline'):
-                self.builder.add_construction_notes_by_discipline(disc)
-            if hasattr(self.builder, 'add_code_references'):
-                self.builder.add_code_references(dtype)
-        except Exception:
-            pass
-        # 自动追加：GB 国标图框（图纸空间）+ 1:100 视口
-        sheet_layout = None
-        if add_sheet and hasattr(self.builder, 'add_gb_sheet'):
-            try:
-                td = title_data or {
-                    'project':  'NL-Demo',
-                    'title':    parsed.get('drawing_type', '示例图纸'),
-                    'scale':    '1:100',
-                    'drawing_no': f'NL-{parsed.get("drawing_type", "")[:3].upper()}-01',
-                    'date':     '2026',
-                    'designer': 'NL',
-                    'checker':  '—',
-                    'approver': '—',
-                }
-                sheet_layout = self.builder.add_gb_sheet(
-                    paper_size=paper_size, title_data=td)
-                result['sheet_layout'] = str(sheet_layout.name)
-                result['paper_size'] = paper_size
-            except Exception as e:
-                result['sheet_error'] = str(e)
+            if sheet_layout is not None and notes_in_layout is not False:
+                self._add_notes_to_sheet(sheet_layout, disc, dtype, paper_size,
+                                         result)
+            else:
+                self._add_notes_to_model(disc, dtype)
+        except Exception as e:
+            result['notes_error'] = str(e)
         # 落盘
         try:
             self.builder.save(filename)
@@ -396,6 +463,243 @@ class NaturalLanguageGenerator:
             result['save_error'] = str(e)
         return {'ok': saved_ok, 'drawing_type': dtype,
                 'parsed': parsed, 'result': result, 'filename': filename}
+
+    # ---- 说明落点：图纸空间说明栏（首选，含自动分页） ----
+    #
+    # 字号取「可读优先」：文字 2.5mm / 行距 3.8mm（GB/T 50001 图纸上能看清的下限区）。
+    # 为什么不靠压缩字号硬塞？实测一个 A3 说明栏（180×216mm）只有 ~55 行的容量，
+    # 而建筑专业整套说明有 100+ 行；把字压到 1.8mm 硬塞进去的结果是
+    # "页面不溢出、但印出来读不出" —— 那是假达标。真实工程做法就是**分页**，
+    # 所以这里改成：第一页说明栏 + 后续页自动新建「说明续页」图幅。
+    NOTES_LS = 3.8          # 行距（纸 mm）
+    NOTES_TH = 2.5          # 正文字高（纸 mm）
+    NOTES_TITLE_H = 4.5     # 标题字高（纸 mm）
+    CODE_LS = 4.0
+    # 规范字号基数取 5.0：`_code_line_items` 的最小一级是 0.5×base，
+    # 取 4.0 时最小字高 2.0~2.24mm（印出来偏小，实测被体检抓出），
+    # 取 5.0 → 最小 2.5mm，正好卡住可读下限，且**不影响排版高度**（高度由行距决定）。
+    CODE_BH = 5.0
+
+    @staticmethod
+    def _is_heading(text: str) -> bool:
+        """判断一行是不是"标题行"（用来避免标题孤零零留在页尾）。
+
+        标题行特征：以 一、/二、/三、/四、/【 开头，或就是大标题本身。
+        """
+        t = (text or "").strip()
+        if not t:
+            return False
+        if t.startswith(("一、", "二、", "三、", "四、", "五、", "六、")):
+            return True
+        if t.startswith("【") or t.startswith("施 工 说 明"):
+            return True
+        return False
+
+    @classmethod
+    def _paginate_items(cls, items, max_h: float):
+        """把行清单按高度切成多页（贪心填充 + 标题孤儿回退）。
+
+        行清单的 dy 是相对起始点的负偏移，所以"已占高度" = 页首 dy − 当前项 dy。
+        切页时若发现**本页最后一行是标题**，把它挪到下一页开头
+        （否则会出现"三、引用规范"孤零零挂在页尾、"• 条文"全在下一页的排版事故）。
+        """
+        pages, cur, i = [], [], 0
+        while i < len(items):
+            it = items[i]
+            if cur:
+                used = cur[0][1] - it[1]
+                if used > max_h:
+                    if len(cur) > 1 and cls._is_heading(cur[-1][2]):
+                        moved = cur.pop()
+                        pages.append(cur)
+                        cur = [moved]
+                        continue          # 当前项不动，进新页重新判断
+                    pages.append(cur)
+                    cur = []
+                    continue
+            cur.append(it)
+            i += 1
+        if cur:
+            pages.append(cur)
+        # 每页 dy 重新基准化到 0
+        out = []
+        for p in pages:
+            base = p[0][1]
+            out.append([(a, b - base, c, d, e, f) for (a, b, c, d, e, f) in p])
+        return out
+
+    def _add_notes_to_sheet(self, layout, discipline: str, drawing_type: str,
+                            paper_size: str, result: Dict) -> None:
+        """把施工说明 + 执行规范写进图纸空间图幅的**说明栏**（装不下就分页）。
+
+        说明栏几何由 `BorderStandard.paper_notes_rect` 按国标图框算出
+        （A3 = 内框右侧 180×216mm 竖带，标题栏之上）。
+
+        版面分配：
+          · 「执行规范」行数固定且字号小 → 先量高度，**钉在第一页栏底**；
+          · 「施工说明」用可读字号排版 → 超出第一页就切到「说明续页」图幅。
+        """
+        from gb_standards import BorderStandard
+
+        try:
+            nx, ny, nw, nh = BorderStandard.paper_notes_rect(paper_size)
+        except Exception:
+            nx, ny, nw, nh = 230.0, 71.0, 180.0, 216.0
+        pad = 4.0
+        col_w = nw - pad * 2
+        col_top = ny + nh - pad
+        col_bot = ny + pad
+        gap = 6.0
+
+        # --- 先量「执行规范」高度（不落笔） ---
+        code_h = 0.0
+        if self._has_codes():
+            try:
+                _cl, _lines = self._code_lines(drawing_type, col_w)
+                _it, _end = self.builder._code_line_items(
+                    _lines, self.CODE_LS, self.CODE_BH, 'G_TEXT', 'G_TITLE',
+                    bool(_cl.mandatory_codes))
+                code_h = abs(_end) if _it else 0.0
+                # ⚠️ E5 回归修复：旧封顶 0.42 让 code_h 远小于真实块高，
+                # 下游 add_code_references 用 code_h+2 当 max_height 被迫把字高压到
+                # 2.2mm（< 2.5mm 可读下限）。改为 0.6 让预留高度贴近真实块高，
+                # 不再逼出压缩；规范过多时由「施工说明」分页兜底（宁可分页不压字）。
+                code_h = min(code_h, nh * 0.60)      # 规范占比封顶 60%
+            except Exception:
+                code_h = 0.0
+
+        notes_h = col_top - (col_bot + code_h + gap)
+
+        # --- 生成说明行清单（可读字号，不压缩） ---
+        pages = []
+        if hasattr(self.builder, 'add_construction_notes_by_discipline') and \
+                hasattr(self.builder, '_notes_line_items'):
+            try:
+                gen = getattr(self.builder, 'note_generator', None)
+                if gen is None:
+                    from construction_notes import ConstructionNoteGenerator
+                    gen = ConstructionNoteGenerator()
+                _notes = gen.generate_notes(discipline=discipline)
+                for _attr in ('_project_name', '_drawing_name', '_drawing_no'):
+                    if hasattr(self.builder, _attr):
+                        setattr(_notes, _attr.lstrip('_'), getattr(self.builder, _attr))
+                _items, _ = self.builder._notes_line_items(
+                    _notes, col_w, self.NOTES_LS, self.NOTES_TH,
+                    self.NOTES_TITLE_H, 'G_TEXT', 'G_TITLE')
+                # 第一页让位给「执行规范」，续页用整栏高度
+                pages = self._paginate_items(_items, max(notes_h, 20.0))
+                full_h = col_top - col_bot
+                if len(pages) > 1:
+                    tail = []
+                    for p in pages[1:]:
+                        base = p[0][1]
+                        tail.extend([(a, b - base, c, d, e, f) for
+                                     (a, b, c, d, e, f) in p])
+                    # 续页合并后按整栏高度重切（避免第一页切出来的碎页）
+                    pages = [pages[0]] + self._paginate_items(tail, full_h)
+            except Exception as e:
+                result['notes_error'] = str(e)
+                pages = []
+
+        page_names = []
+        if pages:
+            page_names = self._draw_notes_pages(
+                layout, pages, paper_size, nx, ny, nw, nh, pad,
+                col_top, col_bot, result)
+
+        # --- 执行规范（钉在第一页栏底） ---
+        if self._has_codes():
+            try:
+                self.builder.add_code_references(
+                    drawing_type, x=nx + pad, y=col_bot + code_h,
+                    width=col_w, line_spacing=self.CODE_LS,
+                    base_height=self.CODE_BH,
+                    target=layout, layer='G_TEXT', title_layer='G_TITLE',
+                    max_height=max(code_h + 2.0, 15.0), auto_fit=True)
+            except Exception as e:
+                result['codes_error'] = str(e)
+
+        result['notes_target'] = 'layout'
+        result['notes_rect'] = [round(v, 2) for v in (nx + pad, ny + pad,
+                                                      col_w, nh - pad * 2)]
+        result['notes_pages'] = len(page_names) or 1
+        result['notes_layouts'] = page_names
+
+    def _has_codes(self) -> bool:
+        return all(hasattr(self.builder, a) for a in
+                   ('code_db', 'code_formatter', '_code_line_items'))
+
+    def _code_lines(self, drawing_type: str, col_w: float):
+        _cl = self.builder.code_db.get_codes_by_drawing_type(drawing_type)
+        _lines = self.builder.code_formatter.format_for_dxf(_cl, col_w)
+        return _cl, _lines
+
+    def _draw_notes_pages(self, layout, pages, paper_size, nx, ny, nw, nh,
+                          pad, col_top, col_bot, result) -> list:
+        """逐页落笔；第 2 页起自动新建「说明续页」图幅（同图框/标题栏）。"""
+        from gb_standards import BorderStandard
+
+        names = []
+        for idx, page in enumerate(pages):
+            if idx == 0:
+                tgt, tgt_name = layout, layout.name
+            else:
+                td = {
+                    'project': getattr(self.builder, '_project_name', '') or 'NL-Demo',
+                    'title': '施工说明（续 %d）' % idx,
+                    'scale': '—',
+                    'drawing_no': '%s-说明%d' % (
+                        getattr(self.builder, '_drawing_no', '') or 'NL',
+                        idx + 1),
+                    'date': '2026', 'designer': 'NL',
+                    'checker': '—', 'approver': '—',
+                }
+                try:
+                    tgt = self.builder.add_gb_sheet(
+                        paper_size=paper_size, title_data=td,
+                        name=BorderStandard.note_sheet_name(
+                            base="GB_%s" % paper_size, paper=paper_size,
+                            n=idx + 1, title=td.get('title', '')),
+                        with_viewport=False)   # 续页是纯说明页，不重复画图形
+                except Exception as e:
+                    result['notes_page_error'] = str(e)
+                    break
+                tgt_name = tgt.name
+            names.append(str(tgt_name))
+            try:
+                self.builder.draw_notes_items(
+                    page, x=nx + pad, y=col_top, target=tgt)
+            except Exception as e:
+                result['notes_page_error'] = str(e)
+        return names
+
+    # ---- 说明落点：模型空间（无图框时的回退路径） ----
+    def _add_notes_to_model(self, discipline: str, drawing_type: str) -> None:
+        """无图框时把说明画在模型空间图形右侧空白区（v1.16 旧行为）。
+
+        坐标是「图纸毫米 × scale」，所以要把 scale 交给方法内部
+        （put 会按 s 同时放大 x/y/字高，width 保持图纸毫米）。
+        ⚠️ 不要传 scale=1.0：`add_code_references` 的字高是硬编码比例，
+           只受 scale 缩放，scale=1.0 会把字高缩成 5mm → 审查报 16 条「字高偏小」。
+        """
+        try:
+            from ezdxf import bbox as _bbox
+            _ext = _bbox.extents(self.builder.msp)
+            _S = 100.0
+            _px = ((_ext.extmax.x if _ext.has_data else 0.0) + 3.0 * _S) / _S
+            _py = (_ext.extmax.y if _ext.has_data else 0.0) / _S
+        except Exception:
+            _S, _px, _py = 100.0, 232.0, 283.0
+
+        _end_y = None
+        if hasattr(self.builder, 'add_construction_notes_by_discipline'):
+            _end_y = self.builder.add_construction_notes_by_discipline(
+                discipline, x=_px, y=_py, width=180.0, scale=_S)
+        if hasattr(self.builder, 'add_code_references'):
+            self.builder.add_code_references(
+                drawing_type, x=_px,
+                y=(_end_y if _end_y is not None else _py) - 15.0,
+                width=180.0, scale=_S)
 
     # ---- 14 分支实现 ----
     def _gen_floor_plan(self, p: Dict) -> Dict:
@@ -634,6 +938,215 @@ class NaturalLanguageGenerator:
             site_width=w, site_depth=d))
         return {'width_mm': w, 'depth_mm': d}
 
+    # ---- v1.17.4 ③层标准节点大样 handler ----
+    # 复用 templates_atlas.NODES 注册表（单一真相源）；参数从自然语言原文解析。
+    @staticmethod
+    def _parse_node_text(t: str) -> Dict:
+        """从自然语言原文解析节点参数（仅填有值的字段）。
+
+        柱/梁尺寸解析用「最近尺寸对」算法：原文可能出现「600x600柱300x600梁」
+        （尺寸在前）或「柱800×800 梁400×800」（尺寸在后）两种语序，且尺寸对
+        可能被相邻名词「串字」。这里把每个尺寸对按其位置就近分配给 柱/梁 名词，
+        既支持两种语序，又不会把柱的尺寸误判给梁。
+        """
+        kw: Dict = {}
+        # 所有 "数x数" 尺寸对（记录起止位置，用于就近判定）
+        pairs = [(m.start(), m.end(), float(m.group(1)), float(m.group(2)))
+                 for m in re.finditer(r'(\d+)\s*[xX×*]\s*(\d+)', t)]
+        col_spans = [(m.start(), m.end()) for m in re.finditer(r'(?:柱|KZ)', t)]
+        beam_spans = [(m.start(), m.end()) for m in re.finditer(r'(?:梁|KL)', t)]
+
+        def _adj_role(pair, spans):
+            """尺寸对与名词是否零间隔相邻：返回 'before'(尺寸在名词前) /
+            'after'(尺寸在名词后)，不相邻返回 None。"""
+            s, e = pair[0], pair[1]
+            for (ns, ne) in spans:
+                if ne <= s and t[ne:s] == '':      # 名词在前、尺寸紧跟其后
+                    return 'after'
+                if e <= ns and t[e:ns] == '':      # 尺寸在前、名词紧跟其后
+                    return 'before'
+            return None
+
+        for (s, e, w, h) in pairs:
+            cands = []
+            rc = _adj_role((s, e, w, h), col_spans)
+            if rc:
+                cands.append(('col', rc))
+            rb = _adj_role((s, e, w, h), beam_spans)
+            if rb:
+                cands.append(('beam', rb))
+            if not cands:
+                continue
+            # 一个尺寸对可能同时贴着两个名词（如"柱300x600梁"），
+            # 优先取「尺寸在名词前」(中文工程简写 300x600梁 = 梁 300x600)
+            kind = next((k for k, r in cands if r == 'before'), cands[0][0])
+            if kind == 'col':
+                kw['column_width'], kw['column_depth'] = w, h
+            else:
+                kw['beam_left_width'] = w
+                kw['beam_left_height'] = h
+                kw['beam_right_width'] = w
+                kw['beam_right_height'] = h
+        # 节点类型
+        for cn, val in (('中柱', 'middle'), ('边柱', 'edge'), ('角柱', 'corner'),
+                        ('顶层端', 'top_end'), ('顶层中柱', 'top_middle')):
+            if cn in t:
+                kw['node_type'] = val
+                break
+        # 抗震等级
+        m = re.search(r'(?:抗震)?([一二三四1-4])级', t)
+        if m:
+            lv = {'一': 1, '二': 2, '三': 3, '四': 4,
+                  '1': 1, '2': 2, '3': 3, '4': 4}.get(m.group(1))
+            if lv:
+                kw['seismic_level'] = lv
+        # 混凝土 / 钢筋等级
+        m = re.search(r'(C\d{2})', t)
+        if m:
+            kw['concrete_grade'] = m.group(1)
+        m = re.search(r'(HRB\d{3})', t)
+        if m:
+            kw['rebar_grade'] = m.group(1)
+        return kw
+
+    def _gen_node_beam_column(self, p: Dict) -> Dict:
+        from templates_atlas.node_beam_column import (
+            node_beam_column, BeamColumnNodeParams)
+        kw = self._parse_node_text(p.get('original', ''))
+        params = BeamColumnNodeParams(**kw)
+        node_beam_column(self.builder, params)
+        return {'type': 'node_beam_column', 'params': kw}
+
+    def _gen_node_stair(self, p: Dict) -> Dict:
+        from templates_atlas.node_stair import (
+            stair_node, StairNodeParams)
+        t = p.get('original', '')
+        kw: Dict = {}
+        m = re.search(r'(?:梯板|板厚|h)\s*=?\s*(\d+)', t)
+        if m:
+            kw['slab_t'] = float(m.group(1))
+        m = re.search(r'(\d+)\s*[xX×*]\s*(\d+)\s*(?:踏步|步)', t)
+        if m:
+            kw['step_h'] = float(m.group(1))
+            kw['step_w'] = float(m.group(2))
+        params = StairNodeParams(**kw)
+        stair_node(self.builder, params)
+        return {'type': 'node_stair', 'params': kw}
+
+    def _gen_node_foundation(self, p: Dict) -> Dict:
+        from templates_atlas.node_foundation import (
+            foundation_node, FoundationNodeParams)
+        t = p.get('original', '')
+        kw: Dict = {}
+        m = re.search(r'(\d+)\s*[xX×*]\s*(\d+)', t)
+        if m:
+            kw['base_b'] = float(m.group(1))
+            kw['base_l'] = float(m.group(2))
+        m = re.search(r'(?:基础高|承台高|h)\s*=?\s*(\d+)', t)
+        if m:
+            kw['base_h'] = float(m.group(1))
+        m = re.search(r'(?:柱|KZ)\s*(\d+)\s*[xX×*]\s*(\d+)', t)
+        if m:
+            kw['col_b'] = float(m.group(1))
+            kw['col_l'] = float(m.group(2))
+        params = FoundationNodeParams(**kw)
+        foundation_node(self.builder, params)
+        return {'type': 'node_foundation', 'params': kw}
+
+    def _gen_node_pile(self, p: Dict) -> Dict:
+        from templates_atlas.node_pile import (
+            pile_node, PileNodeParams)
+        t = p.get('original', '')
+        kw: Dict = {}
+        m = re.search(r'(?:桩径|桩\s*直径|桩\s*径)\s*(\d+)', t)
+        if m:
+            kw['pile_dia'] = float(m.group(1))
+        m = re.search(r'(?:承台)\s*(\d+)\s*[xX×*]\s*(\d+)', t)
+        if m:
+            kw['cap_b'] = float(m.group(1))
+            kw['cap_l'] = float(m.group(2))
+        params = PileNodeParams(**kw)
+        pile_node(self.builder, params)
+        return {'type': 'node_pile', 'params': kw}
+
+    # ---- v1.17.4 ③层**钢结构**连接节点 handler ----
+    @staticmethod
+    def _steel_grade(t: str) -> str:
+        m = re.search(r'(Q\d{3})', t)
+        return m.group(1) if m else 'Q355'
+
+    @staticmethod
+    def _bolt_dia(t: str) -> float:
+        m = re.search(r'M\s*(\d{2})', t)
+        return float(m.group(1)) if m else 0.0
+
+    def _gen_node_steel_base(self, p: Dict) -> Dict:
+        from templates_atlas.node_steel_v2 import (
+            steel_column_base, SteelColumnBaseParams)
+        t = p.get('original', '')
+        kw: Dict = {'steel_grade': self._steel_grade(t)}
+        # 柱截面：柱300x300 / 300x300柱（两种语序）
+        m = (re.search(r'(?:柱|KZ)\s*(\d+)\s*[xX×*]\s*(\d+)', t)
+             or re.search(r'(\d+)\s*[xX×*]\s*(\d+)\s*(?:柱|KZ)', t))
+        if m:
+            kw['column_width'] = float(m.group(1))
+            kw['column_depth'] = float(m.group(2))
+        # 底板：底板600x600
+        m = re.search(r'底板\s*(\d+)\s*[xX×*]\s*(\d+)', t)
+        if m:
+            kw['base_plate_width'] = float(m.group(1))
+            kw['base_plate_depth'] = float(m.group(2))
+        d = self._bolt_dia(t)
+        if d:
+            kw['anchor_bolt_dia'] = d
+        if '铰接' in t:
+            kw['joint_type'] = 'pinned'
+            kw['anchor_bolt_count'] = 4
+        if '刚接' in t:
+            kw['joint_type'] = 'rigid'
+            kw['anchor_bolt_count'] = 8
+        params = SteelColumnBaseParams(**kw)
+        steel_column_base(self.builder, params)
+        return {'type': 'node_steel_base', 'params': kw}
+
+    def _gen_node_steel_beam_column(self, p: Dict) -> Dict:
+        from templates_atlas.node_steel_v2 import (
+            steel_beam_column, SteelBeamColumnParams)
+        t = p.get('original', '')
+        kw: Dict = {'steel_grade': self._steel_grade(t)}
+        m = re.search(r'(?:H|梁高|梁)\s*(\d{3,4})', t)
+        if m:
+            kw['beam_height'] = float(m.group(1))
+        d = self._bolt_dia(t)
+        if d:
+            kw['bolt_dia'] = d
+        m = re.search(r'M\s*\d{2}\s*[×xX*]\s*(\d{1,2})', t)
+        if m:
+            kw['bolt_count'] = int(m.group(1))
+        if '部分熔透' in t:
+            kw['weld_type'] = 'partial'
+        params = SteelBeamColumnParams(**kw)
+        steel_beam_column(self.builder, params)
+        return {'type': 'node_steel_beam_column', 'params': kw}
+
+    def _gen_node_steel_splice(self, p: Dict) -> Dict:
+        from templates_atlas.node_steel_v2 import (
+            steel_beam_splice, SteelBeamSpliceParams)
+        t = p.get('original', '')
+        kw: Dict = {'steel_grade': self._steel_grade(t)}
+        m = re.search(r'(?:H|梁高|梁)\s*(\d{3,4})', t)
+        if m:
+            kw['beam_height'] = float(m.group(1))
+        d = self._bolt_dia(t)
+        if d:
+            kw['bolt_dia'] = d
+        m = re.search(r'(?:拼接板|t)\s*=?\s*(\d{2})', t)
+        if m:
+            kw['splice_plate_t'] = float(m.group(1))
+        params = SteelBeamSpliceParams(**kw)
+        steel_beam_splice(self.builder, params)
+        return {'type': 'node_steel_splice', 'params': kw}
+
 
 # ============================================================
 # 3. NLInterface — 命令行交互
@@ -720,12 +1233,14 @@ def integrate_nl_to_builder(builder_class):
                                filename: str = 'nl_output.dxf',
                                add_sheet: bool = True,
                                paper_size: str = 'A3',
-                               title_data: Optional[Dict] = None) -> Dict:
+                               title_data: Optional[Dict] = None,
+                               notes_in_layout: Optional[bool] = None) -> Dict:
             if self._nl_generator is None:
                 self._nl_generator = NaturalLanguageGenerator(self)
             return self._nl_generator.generate(
                 text, filename, add_sheet=add_sheet,
-                paper_size=paper_size, title_data=title_data)
+                paper_size=paper_size, title_data=title_data,
+                notes_in_layout=notes_in_layout)
 
         def parse_text(self, text: str) -> Dict:
             return self.nl_parser.parse(text)

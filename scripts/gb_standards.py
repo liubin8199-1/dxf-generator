@@ -211,6 +211,51 @@ class TextStandard:
 # ============================================================
 # 5. 图框标准 (GB/T 50001-2017 第3章)
 # ============================================================
+# ============================================================
+# 8.x 续页图幅命名模板（v1.17.3 新增 · 扩「能画什么」）
+# ============================================================
+NOTE_SHEET_NAME_TEMPLATE = "{base}_notes_{n}"
+"""
+续页图幅命名模板
+
+可用变量:
+    {base}   - 基础图幅名（如 "GB_A3"）
+    {paper}  - 图幅代号（如 "A3"）
+    {n}      - 页码序号（从 2 开始，第 1 页无后缀）
+    {name}   - 图纸名称（从 title_data 取，可能为空）
+
+默认: "{base}_notes_{n}" → "GB_A3_notes_2"
+
+向后兼容:
+    设为 "GB_{paper}_说明{n}" 可保持 v1.17.0 行为
+"""
+
+
+def get_note_sheet_name(base: str, paper: str, n: int,
+                        title: str = "",
+                        template: str = None) -> str:
+    """生成续页图幅名。
+
+    Args:
+        base: 基础图幅名（如 "GB_A3"）
+        paper: 图幅代号（如 "A3"）
+        n: 页码（从 2 开始）
+        title: 图纸名称（可选）
+        template: 覆盖全局模板
+
+    Returns:
+        续页图幅名，如 'GB_A3_notes_2'
+
+    示例:
+        >>> get_note_sheet_name("GB_A3", "A3", 2)
+        'GB_A3_notes_2'
+        >>> get_note_sheet_name("GB_A3", "A3", 2, template="GB_{paper}_说明{n}")
+        'GB_A3_说明2'
+    """
+    tpl = template or NOTE_SHEET_NAME_TEMPLATE
+    return tpl.format(base=base, paper=paper, n=n, name=title)
+
+
 class BorderStandard:
     """国标图框标准（纸张毫米）。"""
 
@@ -230,6 +275,98 @@ class BorderStandard:
     TITLE_BLOCK = {  # 标题栏（右下角）
         "width": 180, "height": 56, "rows": 4, "cols": [45, 30, 30, 30, 45],
     }
+
+    # ---------- 视口几何（与 add_gb_sheet 保持同一套算法） ----------
+    @staticmethod
+    def viewport_size(paper_size: str = "A3", gap: float = 5.0):
+        """返回视口 (宽, 高)，单位图纸毫米。
+
+        与 `add_gb_sheet` 里的算法同源 —— 抽出来是为了让
+        `fit_scale` / 说明栏 / 校验脚本都能拿到**同一个**视口尺寸，
+        避免两处各算一遍、改一处忘一处。
+        """
+        w, h = BorderStandard.SIZES[paper_size]
+        m = BorderStandard.MARGINS[paper_size]
+        tb = BorderStandard.TITLE_BLOCK
+        vp_w = (w - m["right"]) - tb["width"] - m["left"] - gap
+        vp_h = (h - m["bottom"] - m["top"]) - gap
+        return (vp_w, vp_h)
+
+    STANDARD_SCALES = (1, 2, 5, 10, 20, 25, 50, 100, 150, 200, 300, 500,
+                       1000, 2000, 5000)
+
+    # ---------- 说明栏（图纸空间，自动计算） ----------
+    @staticmethod
+    def paper_notes_rect(paper_size: str = "A3", gap: float = 5.0):
+        """返回「说明栏」矩形 (x0, y0, width, height)，单位为**图纸毫米**。
+
+        来历（这不是拍脑袋，是按国标图框几何推出来的）：
+        `add_gb_sheet` 的视口宽度 = 内框宽 − 标题栏宽 − gap，且视口**左对齐**内框，
+        所以内框右侧天然空出一条竖带；标题栏（180×56）又只占这条竖带的底部一角。
+        → 说明栏 = 竖带 ∩ 标题栏之上。
+
+        A3 实测：内框 25..410（宽 385），视口 x 25..225，
+        说明栏 = (230, 71, 180, 216)，即 **180 宽 × 216 高**，够放 40+ 行 4.5mm 行距说明。
+        """
+        w, h = BorderStandard.SIZES[paper_size]
+        m = BorderStandard.MARGINS[paper_size]
+        tb = BorderStandard.TITLE_BLOCK
+        inner_x0, inner_y0 = m["left"], m["bottom"]
+        inner_x1, inner_y1 = w - m["right"], h - m["top"]
+        vp_w = (inner_x1 - inner_x0) - tb["width"] - gap
+        nx0 = inner_x0 + vp_w + gap
+        ny0 = inner_y0 + tb["height"] + gap
+        return (nx0, ny0, inner_x1 - nx0, inner_y1 - ny0)
+
+    @classmethod
+    def note_sheet_name(cls, base: str, paper: str, n: int,
+                        title: str = "", template: str = None) -> str:
+        """续页图幅命名（类方法封装，供 NL 引擎 / pipeline 调用）。
+
+        默认英文 {base}_notes_{n}；传入 template='GB_{paper}_说明{n}'
+        可恢复 v1.17.0 旧行为。
+        """
+        return get_note_sheet_name(base, paper, n, title, template)
+
+    @classmethod
+    def fit_scale(cls, model_w: float, model_h: float,
+                  paper_size: str = "A3", gap: float = 5.0,
+                  fill: float = 0.92):
+        """给模型包围盒挑一个能装进视口的**标准国标比例**。
+
+        返回 paper/model 比值（如 0.01 = 1:100）。
+        做法：需要的比值 r 必须满足 `model * r <= 可用纸面`（两个方向都要），
+        即 `r <= 1/need`；标准比例按分母升序排列时 r 递减，
+        所以**第一个满足的**就是能装下的最大比例（= 最省纸的那个）。
+        """
+        vp_w, vp_h = cls.viewport_size(paper_size, gap)
+        aw, ah = vp_w * fill, vp_h * fill
+        try:
+            mw, mh = float(model_w), float(model_h)
+        except Exception:
+            return 1 / 100
+        if mw <= 0 or mh <= 0:
+            return 1 / 100
+        max_ratio = min(aw / mw, ah / mh)
+        for s in cls.STANDARD_SCALES:
+            r = 1.0 / s
+            if r <= max_ratio + 1e-12:
+                return r
+        return 1.0 / cls.STANDARD_SCALES[-1]
+
+    @staticmethod
+    def scale_label(scale: float) -> str:
+        """0.01 → '1:100'（不整除时保留两位小数）。"""
+        try:
+            s = float(scale)
+            if s <= 0:
+                return "1:100"
+            d = 1.0 / s
+            if abs(d - round(d)) < 1e-6:
+                return "1:%d" % round(d)
+            return "1:%.2f" % d
+        except Exception:
+            return "1:100"
 
 
 # ============================================================
@@ -475,25 +612,59 @@ class GBDxfBuilder(ConstructionNoteMixin, DxfBuilder):
 
     # ---------- 国标图纸空间图幅（图框 + 标题栏 + 1:100 视口） ----------
     def add_gb_sheet(self, paper_size="A3", title_data=None,
-                     view_center=(6000, 4000), scale=1 / 100, name=None):
-        """在【图纸空间】新建一个 A3 图幅：画国标图框 + 标题栏，并加一个
-        显示模型空间、比例为 scale（默认 1:100）的视口，使 1:1 模型正确出图。
-        返回新建的 Layout 对象。"""
+                     view_center=None, scale=1 / 100, name=None,
+                     with_viewport: bool = True):
+        """在【图纸空间】新建图幅：画国标图框 + 标题栏，并加一个显示模型空间、
+        比例为 `scale`（默认 1:100，即 paper/model）的视口，使 1:1 模型正确出图。
+        返回新建的 Layout 对象。
+
+        ⚠️ **v1.17.0 修了一个从 v1.14 就存在的静默 bug**：
+        ezdxf 的 `Layout.add_viewport(center, size, view_center_point, view_height)`
+        第 4 个参数是 **view_height（视口内可见的模型高度，模型单位）**，
+        不是比例！老代码把 `scale=1/100` 直接传进去 → view_height = 0.01mm
+        → 视口只看到模型里 0.01mm 高的切片（`get_modelspace_limits()` 退化成一个点，
+        `get_scale()` 返回 27200）。因为以前从不渲染图纸空间，这个错误一直没暴露。
+        现在按 `view_height = 视口高(纸mm) / scale` 正确换算。
+
+        `with_viewport=False` → 只画图框 + 标题栏，**不加视口**
+        （用于「施工说明续页」这类纯文字图幅，避免每页都把图形重复画一遍）。
+        """
         w, h = BorderStandard.SIZES[paper_size]
         m = BorderStandard.MARGINS[paper_size]
         layout = self.doc.layouts.new(name or ("GB_" + paper_size))
         self.add_gb_border(paper_size, title_data, layout=layout)
+        if not with_viewport:
+            return layout
         # 视口中心与尺寸（图纸毫米，置于内框绘图区内、避开右下角标题栏）
         inner_x0, inner_y0 = m["left"], m["bottom"]
-        inner_x1, inner_y1 = w - m["right"], h - m["top"]
-        tb = BorderStandard.TITLE_BLOCK
-        vp_w = (w - m["right"]) - tb["width"] - m["left"] - 5
-        vp_h = (h - m["bottom"] - m["top"]) - 5
+        vp_w, vp_h = BorderStandard.viewport_size(paper_size)
         vp_cx = inner_x0 + vp_w / 2
         vp_cy = inner_y0 + vp_h / 2
-        vp = layout.add_viewport((vp_cx, vp_cy), (vp_w, vp_h), view_center, scale)
+        # 视口对准哪里：不传就自动取模型空间包围盒中心（图框自动居中图形）
+        vc = view_center
+        if vc is None:
+            vc = self._msp_center() or (6000.0, 4000.0)
+        # 关键换算：视口可见的模型高度 = 纸高 / 比例
+        try:
+            _s = float(scale) if float(scale) > 0 else 1 / 100
+        except Exception:
+            _s = 1 / 100
+        view_height = vp_h / _s
+        vp = layout.add_viewport((vp_cx, vp_cy), (vp_w, vp_h), vc, view_height)
         vp.dxf.status = 1
         return layout
+
+    def _msp_center(self):
+        """模型空间包围盒中心（无实体返回 None）。"""
+        try:
+            from ezdxf import bbox as _bbox
+            ext = _bbox.extents(self.msp)
+            if not ext.has_data:
+                return None
+            return ((ext.extmin.x + ext.extmax.x) / 2.0,
+                    (ext.extmin.y + ext.extmax.y) / 2.0)
+        except Exception:
+            return None
 
 
 # ============================================================

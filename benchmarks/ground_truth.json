@@ -1,0 +1,66 @@
+{
+  "version": "1.0",
+  "description": "识图评测真值表（v1.17.4 · B 路线）。当前为 v1.17.1 已用过的 7 张真实图纸；目标扩到 30~50 张后再改识别规则（7 张调阈值必过拟合）。",
+  "vocab_note": "系统识图类型域共 34 类（见 drawing_reader.TYPE_BY_KEYWORDS / TYPE_BY_LAYERS）。真值不在域内时标 oov=true：此时【正确做法是拒识】(inferred 为空)，拒识不计入认错。",
+  "metric_note": "认错 = 有输出(inferred 非空) 且 不严格正确 且 不宽松正确。⚠️ 必须报『认错率』，不能只报『有没有识别』——旧口径『识别成功 100%』是假指标（只统计有没有输出，不统计对不对）。",
+  "source_dir": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf",
+  "source_note": "source 指向 DWG→DXF 预处理后的副本（p_ 前缀 = 已剥 OBJECTS 段 + 删缺名表记录，7/7 可读）。benchmarks/raw/ 可放同名副本以脱离外部路径；raw/ 不入库（见 .gitignore）。",
+  "samples": [
+    {
+      "file": "01 材料表.dxf",
+      "type": "材料表",
+      "family": [],
+      "oov": true,
+      "source": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf\\p_01 材料表.dxf",
+      "notes": "模型空间仅 996 实体（主体在 Layout1）。系统无『材料表』类型 → 正确做法是拒识。实测识成『火灾报警图』（模板图例污染）。"
+    },
+    {
+      "file": "02 通用剖面图.dxf",
+      "type": "剖面图",
+      "family": ["剖面图", "结构图"],
+      "oov": false,
+      "source": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf\\p_02 通用剖面图.dxf",
+      "notes": "水平构造层 + 引出线。"
+    },
+    {
+      "file": "03 1F.dxf",
+      "type": "平面图",
+      "family": ["平面图", "基础平面图"],
+      "oov": false,
+      "source": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf\\p_03 1F.dxf",
+      "notes": "首层平面，模型空间约 2.9 万实体（实体数量级本身是强信号）。"
+    },
+    {
+      "file": "04 -1F.dxf",
+      "type": "平面图",
+      "family": ["平面图", "基础平面图"],
+      "oov": false,
+      "source": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf\\p_04 -1F.dxf",
+      "notes": "地下一层平面。"
+    },
+    {
+      "file": "05 2F.dxf",
+      "type": "平面图",
+      "family": ["平面图", "基础平面图"],
+      "oov": false,
+      "source": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf\\p_05 2F.dxf",
+      "notes": "二层平面。"
+    },
+    {
+      "file": "06 3F.dxf",
+      "type": "平面图",
+      "family": ["平面图", "基础平面图"],
+      "oov": false,
+      "source": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf\\p_06 3F.dxf",
+      "notes": "三层平面。"
+    },
+    {
+      "file": "牧马中央空调、新风、地暖施工图.dxf",
+      "type": "暖通图",
+      "family": ["空调系统图", "防排烟图"],
+      "oov": false,
+      "source": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf\\p_牧马中央空调、新风、地暖施工图.dxf",
+      "notes": "空调/新风/地暖三合一。"
+    }
+  ]
+}

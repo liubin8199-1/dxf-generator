@@ -118,11 +118,65 @@ DEFAULT_LEGEND = [
 ]
 
 
+# 符号名 → 绘制适配器（统一签名 (b, x, y, s)）。
+# 存在的意义：允许调用方用「字符串符号名」描述图例项，而不必传 lambda。
+_SYMBOL_REGISTRY = {
+    "sym_lamp_ceiling": lambda b, x, y, s: sym_lamp_ceiling(b, x, y, s),
+    "sym_lamp_pendant": lambda b, x, y, s: sym_lamp_pendant(b, x, y, s),
+    "sym_lamp_wall": lambda b, x, y, s: sym_lamp_wall(b, x, y, s),
+    "sym_switch": lambda b, x, y, s: sym_switch(b, x, y, s, 1),
+    "sym_socket": lambda b, x, y, s: sym_socket(b, x, y, s),
+    "sym_socket_3p": lambda b, x, y, s: sym_socket_3p(b, x, y, s),
+    "sym_panel": lambda b, x, y, s: sym_panel(
+        b, x - s, y - s * 0.625, s * 2, s * 1.25),
+    "sym_ground": lambda b, x, y, s: sym_ground(b, x, y, s),
+    "sym_weak": lambda b, x, y, s: sym_weak(b, x, y, s),
+}
+
+
+def normalize_legend_item(item):
+    """图例项归一化 → (name, draw_callable, note)。
+
+    兼容两种写法（历史坑：NL 引擎传字典+字符串符号名，
+    而本函数原本只吃三元组 → 触发 ``'str' object is not callable``）：
+
+    * 三元组 ``('吸顶灯', callable, '距地 2.6m')``
+    * 字典   ``{'name': '吸顶灯', 'sym': 'sym_lamp_ceiling'|callable,
+               'size': 400, 'note': '...'}``
+    """
+    if isinstance(item, dict):
+        name = str(item.get("name", ""))
+        note = str(item.get("note") or item.get("desc") or "")
+        size = item.get("size") or 400
+        sym = item.get("sym")
+        if callable(sym):
+            def draw(b, x, y, s, _f=sym, _s=size):
+                return _f(b, x, y, _s or s)
+        else:
+            fn = _SYMBOL_REGISTRY.get(str(sym)) if sym is not None else None
+            if fn is None:
+                def draw(b, x, y, s, _n=name):
+                    return b.text(_n, x, y, h=220, layer="E_TEXT")
+            else:
+                def draw(b, x, y, s, _f=fn, _s=size):
+                    return _f(b, x, y, _s or s)
+        return (name, draw, note)
+    if isinstance(item, (tuple, list)):
+        if len(item) >= 3:
+            return (item[0], item[1], item[2])
+        if len(item) == 2:
+            return (item[0], item[1], "")
+    raise ValueError("无法识别的图例项: %r" % (item,))
+
+
 def electrical_legend(b, items=None, x=0, y=0, sym_size=400,
                       row_h=700, col_w=9000, title="电气图例"):
-    """电气图例表：每行 = 符号 + 名称 + 说明，外框 + 横线分隔。"""
+    """电气图例表：每行 = 符号 + 名称 + 说明，外框 + 横线分隔。
+
+    items 支持三元组或字典（见 ``normalize_legend_item``）。
+    """
     _mep_layers(b)
-    items = items or DEFAULT_LEGEND
+    items = [normalize_legend_item(it) for it in (items or DEFAULT_LEGEND)]
     n = len(items)
     total_h = row_h * n
 

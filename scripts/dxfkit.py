@@ -484,3 +484,131 @@ except Exception as _intf_err:  # pragma: no cover
     DXFCLI = None
     SimpleAPI = None
     _interfaces_version = None
+
+
+# ---------- v1.14.0 新增：识图引擎（图 → 结构化理解） ----------
+# 出图是 语言→图；识图是 图→结构化数据。这是「读得懂」的基础能力。
+try:
+    from drawing_reader import (
+        DrawingReader, DrawingInfo, LayerInfo, TextItem, DimItem,
+        read as read_drawing, describe as describe_drawing,
+        LAYER_DISCIPLINES, infer_drawing_type,
+    )
+except Exception as _dr_err:  # pragma: no cover
+    DrawingReader = None
+    DrawingInfo = None
+    LayerInfo = None
+    TextItem = None
+    DimItem = None
+    read_drawing = None
+    describe_drawing = None
+    LAYER_DISCIPLINES = None
+    infer_drawing_type = None
+
+
+# ---------- v1.14.0 新增：工程量清单统计（图 → 工程量表） ----------
+try:
+    from bom import (
+        BOMItem, BOMReport, BOMCalculator,
+        generate_bom, batch_bom, classify_layer,
+    )
+except Exception as _bom_err:  # pragma: no cover
+    BOMItem = None
+    BOMReport = None
+    BOMCalculator = None
+    generate_bom = None
+    batch_bom = None
+    classify_layer = None
+
+
+# ---------- v1.14.0 新增：施工说明 v2（按图纸类型匹配专业话术） ----------
+try:
+    from construction_notes_v2 import (
+        ProfessionalPhraseLibrary,
+        get_construction_notes, get_notes_data, list_all_types,
+    )
+except Exception as _cn2_err:  # pragma: no cover
+    ProfessionalPhraseLibrary = None
+    get_construction_notes = None
+    get_notes_data = None
+    list_all_types = None
+
+
+# ---------- v1.14.0 新增：电气 / 暖通专业洞模板 ----------
+try:
+    from templates_electrical_v2 import (
+        DistributionParams, dist_power_system,
+        LightningParams, lightning_grounding,
+        ELECTRICAL_TEMPLATES_V2,
+    )
+except Exception as _elv2_err:  # pragma: no cover
+    DistributionParams = None
+    dist_power_system = None
+    LightningParams = None
+    lightning_grounding = None
+    ELECTRICAL_TEMPLATES_V2 = None
+
+try:
+    from templates_hvac_v2 import (
+        ChilledWaterParams, chilled_water_system,
+        DuctPlanParams, duct_plan,
+        HVAC_TEMPLATES_V2,
+    )
+except Exception as _hvv2_err:  # pragma: no cover
+    ChilledWaterParams = None
+    chilled_water_system = None
+    DuctPlanParams = None
+    duct_plan = None
+    HVAC_TEMPLATES_V2 = None
+
+# 专业洞模板统一注册表：{key: (函数, 参数类)}
+SPECIALTY_TEMPLATES = {}
+for _reg in (ELECTRICAL_TEMPLATES_V2, HVAC_TEMPLATES_V2):
+    if _reg:
+        SPECIALTY_TEMPLATES.update(_reg)
+
+# 识图便捷别名（read 太通用，加语义化后缀避免与 ezdxf.readfile 混淆）
+read_dxf = read_drawing
+describe_dxf = describe_drawing
+
+
+# ---------- v1.15.0 新增：DXF 挤出建模（2D → 3D 体量） ----------
+# 与 interfaces.DXFTo3D 的区别：那个出 z=0 平面薄片；这个出真体块（底+顶+侧面）。
+try:
+    from extrude3d import (
+        ExtrudeParams, ExtrudeBuilder, MultiFloorBuilder, Mesh,
+        export_stl, export_obj, export_viewer_html,
+        DEFAULT_LAYER_HEIGHTS, rebuild_loops, pair_parallel_lines,
+    )
+except Exception as _ex3_err:  # pragma: no cover
+    ExtrudeParams = None
+    ExtrudeBuilder = None
+    MultiFloorBuilder = None
+    Mesh = None
+    export_stl = None
+    export_obj = None
+    export_viewer_html = None
+    DEFAULT_LAYER_HEIGHTS = None
+    rebuild_loops = None
+    pair_parallel_lines = None
+
+
+# ---------- v1.15.0 新增：一键流水线（出图→识图→算量→说明→审查→3D） ----------
+# 一句话 → 全套交付包（dxf + 清单 + 说明 + 识别报告 + 审查报告 + 3D模型 + 汇总）
+# 注意：pipeline.py 依赖 drawing_reader/bom/construction_notes_v2/extrude3d/
+#       drawing_review/interfaces 全部就位，缺任一则整体不加载（HAS_PIPELINE=False）。
+try:
+    from pipeline import (
+        Pipeline, PipelineConfig, PipelineResult, StepResult,
+        pipeline, pipeline_batch, DISCIPLINE_MAP,
+    )
+    HAS_PIPELINE = True
+except Exception as _pl_err:  # pragma: no cover
+    Pipeline = None
+    PipelineConfig = None
+    PipelineResult = None
+    StepResult = None
+    pipeline = None
+    pipeline_batch = None
+    DISCIPLINE_MAP = None
+    HAS_PIPELINE = False

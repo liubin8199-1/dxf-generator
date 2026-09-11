@@ -48,10 +48,10 @@ def main():
 
     print("\n[2] CodeDatabase 规范库")
     n_codes = len(CodeDatabase.ALL_CODES)
-    check("规范总数 = 64", n_codes == 64, "(%d)" % n_codes)
+    check("规范总数 = 67", n_codes == 67, "(%d)" % n_codes)
     cats = CodeDatabase.get_all_categories() if hasattr(CodeDatabase, "get_all_categories") \
         else sorted(set(c.category for c in CodeDatabase.ALL_CODES))
-    check("分类数 = 13", len(cats) == 13, "(%d)" % len(cats))
+    check("分类数 = 14", len(cats) == 14, "(%d)" % len(cats))
     cl = CodeDatabase.get_codes_by_drawing_type("structural")
     check("structural 匹配 ≥18 条",
           len(cl) >= 18,

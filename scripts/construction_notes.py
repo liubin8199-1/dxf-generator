@@ -418,12 +418,114 @@ class ConstructionNoteMixin:
             lines.append(cur)
         return lines or [text]
 
+    def _notes_line_items(self, notes: ConstructionNotes, width: float,
+                          line_spacing: float, text_height: float,
+                          title_height: float,
+                          layer: str = 'G_TEXT', title_layer: str = 'G_TITLE'):
+        """把施工说明**展开成行清单**：[(dx, dy, text, height, layer, style)]。
+
+        dy 是相对起始点的偏移（向下为负）。之所以先算清单再落笔，是为了
+        `auto_fit` —— 只有先知道"要画几行、占多高"，才能在有限的说明栏内
+        自动压缩行距/字高，而不是先画出去、再发现溢出。
+
+        ⚠️ 注意 `_wrap_text` 的换行结果**依赖 text_height**（字宽≈字高），
+        所以压小字高会减少行数 → auto_fit 必须**迭代**，不能一次算完。
+        """
+        items: List[Tuple[float, float, str, float, str, Optional[str]]] = []
+
+        def add(dx, dy, text, h, lyr, st=None):
+            items.append((dx, dy, text, h, lyr, st))
+
+        cur = 0.0
+        # 标题
+        add(0, cur, "施 工 说 明", title_height, title_layer, 'GB_TITLE')
+        cur -= line_spacing * 1.6
+
+        # 一、一般说明
+        if notes.general_notes:
+            add(0, cur, "一、一般说明", text_height, layer)
+            cur -= line_spacing
+            for i, n in enumerate(notes.general_notes, 1):
+                for ln in self._wrap_text(f"{i}. {n.content}", width, text_height):
+                    add(0, cur, ln, text_height, layer)
+                    cur -= line_spacing
+                if n.code:
+                    for ln in self._wrap_text(f"    执行规范：{n.code}", width, text_height):
+                        add(2, cur, ln, text_height, layer)
+                        cur -= line_spacing
+                cur -= line_spacing * 0.25
+
+        # 二、专项说明
+        if notes.specific_notes:
+            add(0, cur, "二、专项说明", text_height, layer)
+            cur -= line_spacing
+            cur_phase = None
+            for n in notes.specific_notes:
+                if n.phase != cur_phase:
+                    cur_phase = n.phase
+                    add(0, cur, f"【{n.phase.value}】", text_height, layer, 'GB_TITLE')
+                    cur -= line_spacing * 0.9
+                for ln in self._wrap_text(f"{n.content}", width, text_height):
+                    add(0, cur, ln, text_height, layer)
+                    cur -= line_spacing
+                if n.code:
+                    for ln in self._wrap_text(f"    执行规范：{n.code}", width, text_height):
+                        add(2, cur, ln, text_height, layer)
+                        cur -= line_spacing
+                cur -= line_spacing * 0.25
+
+        # 三、引用规范
+        if notes.standards:
+            add(0, cur, "三、引用规范", text_height, layer)
+            cur -= line_spacing
+            for std in notes.standards:
+                add(0, cur, f"• {std}", text_height, layer)
+                cur -= line_spacing
+
+        # 四、特殊要求
+        if notes.special_requirements:
+            add(0, cur, "四、特殊要求", text_height, layer)
+            cur -= line_spacing
+            for req in notes.special_requirements:
+                for ln in self._wrap_text(f"• {req}", width, text_height):
+                    add(0, cur, ln, text_height, layer)
+                    cur -= line_spacing
+
+        return items, cur
+
+    def draw_notes_items(self, items, x: float = 0, y: float = 0,
+                         target=None, scale: float = 100.0) -> float:
+        """把 `_notes_line_items` 产出的行清单落到图纸上（落笔，不做排版）。
+
+        抽出来的动机：**分页**。一页说明栏装不下时可以按行清单切片、
+        把后续页画到另一个 Layout 上，此时需要"只落笔、不重新排版"的入口。
+        Returns: 结束 y。
+        """
+        in_paper = target is not None
+        s = 1.0 if in_paper else scale
+        tgt = target if in_paper else self.msp
+        style = getattr(self, '_chinese_style', None) or 'GB_CHINESE'
+        for dx, dy, text, h, lyr, st in items:
+            if in_paper:
+                e = tgt.add_text(
+                    text, dxfattribs={'layer': lyr, 'height': h,
+                                      'style': st or style})
+                e.set_placement((x + dx, y + dy),
+                                align=TextEntityAlignment.LEFT)
+            else:
+                self.add_text((x + dx) * s, (y + dy) * s, text, height=h * s,
+                              layer=lyr, align='LEFT', style=st or style)
+        return y + (items[-1][1] if items else 0.0)
+
     def add_construction_notes(self, notes: ConstructionNotes,
                                x: float = 0, y: float = 0, width: float = 180,
                                line_spacing: float = 4.5, text_height: float = 3.0,
                                title_height: float = 5.0, scale: float = 100.0,
                                target=None,
-                               layer: str = 'G_TEXT', title_layer: str = 'G_TITLE'):
+                               layer: str = 'G_TEXT', title_layer: str = 'G_TITLE',
+                               max_height: Optional[float] = None,
+                               auto_fit: bool = True,
+                               min_text_height: float = 2.5):
         """在图纸中添加施工说明。
 
         Args:
@@ -435,6 +537,13 @@ class ConstructionNoteMixin:
             scale: 模型空间放大倍数（默认 100，对应 1:100 出图）。
             target: 图纸空间 Layout 对象 → 直接在图纸毫米绘制（推荐 A3 说明栏）；
                     None → 绘制到模型空间 self.msp（按 scale 放大）。
+            max_height: 允许占用的最大高度（与 x/y 同单位）。
+                        给定且 `auto_fit=True` 时，若内容超高会**迭代压缩**
+                        行距/字高直到放得下（下限 `min_text_height`）。
+            auto_fit: 是否启用自动适配（`max_height` 为 None 时无效果）。
+            min_text_height: 字高下限，低于此值不再压缩。
+                **默认 2.5mm**（GB/T 50001 图纸上可读的最小字高）——
+                宁可略溢出并交给调用方分页，也不要缩成 1.8mm 那种"看得见但读不出"的字。
         Returns:
             绘制结束后的 y 坐标（便于续接其他内容）。
         """
@@ -443,72 +552,29 @@ class ConstructionNoteMixin:
         tgt = target if in_paper else self.msp
         style = getattr(self, '_chinese_style', None) or 'GB_CHINESE'
 
-        def put(px, py, s_text, h, lyr, st=None):
-            if in_paper:
-                e = tgt.add_text(
-                    s_text,
-                    dxfattribs={'layer': lyr, 'height': h, 'style': st or style})
-                e.set_placement((px, py), align=TextEntityAlignment.LEFT)
-            else:
-                self.add_text(px * s, py * s, s_text, height=h * s,
-                              layer=lyr, align='LEFT', style=st or style)
+        # ---- auto_fit：先量后画，迭代压缩 ----
+        # 说明栏高度有限（A3 说明栏 216mm），而专项说明可能几十行；
+        # 压小 text_height 会同时让 _wrap_text 每行装下更多字 → 行数变少，
+        # 高度不是线性下降，所以必须"量一次→调一次"迭代收敛。
+        _ls, _th, _tht = line_spacing, text_height, title_height
+        if max_height is not None and auto_fit:
+            for _ in range(12):
+                _items, _ = self._notes_line_items(
+                    notes, width, _ls, _th, _tht, layer, title_layer)
+                _h = (-_items[-1][1]) if _items else 0.0
+                if _h <= max_height or _th <= min_text_height:
+                    break
+                f = max_height / _h
+                # 留 2% 余量，避免浮点边界来回震荡
+                f = min(f, 0.98)
+                _ls *= f
+                _th = max(_th * f, min_text_height)
+                _tht = max(_tht * f, min_text_height * 1.4)
 
-        cur_y = y
-        # 标题
-        put(x, cur_y, "施 工 说 明", title_height, title_layer, st='GB_TITLE')
-        cur_y -= line_spacing * 1.6
-
-        # 一、一般说明
-        if notes.general_notes:
-            put(x, cur_y, "一、一般说明", text_height, layer)
-            cur_y -= line_spacing
-            for i, n in enumerate(notes.general_notes, 1):
-                for ln in self._wrap_text(f"{i}. {n.content}", width, text_height):
-                    put(x, cur_y, ln, text_height, layer)
-                    cur_y -= line_spacing
-                if n.code:
-                    for ln in self._wrap_text(f"    执行规范：{n.code}", width, text_height):
-                        put(x + 2, cur_y, ln, text_height, layer)
-                        cur_y -= line_spacing
-                cur_y -= line_spacing * 0.25
-
-        # 二、专项说明
-        if notes.specific_notes:
-            put(x, cur_y, "二、专项说明", text_height, layer)
-            cur_y -= line_spacing
-            cur_phase = None
-            for n in notes.specific_notes:
-                if n.phase != cur_phase:
-                    cur_phase = n.phase
-                    put(x, cur_y, f"【{n.phase.value}】", text_height, layer, st='GB_TITLE')
-                    cur_y -= line_spacing * 0.9
-                for ln in self._wrap_text(f"{n.content}", width, text_height):
-                    put(x, cur_y, ln, text_height, layer)
-                    cur_y -= line_spacing
-                if n.code:
-                    for ln in self._wrap_text(f"    执行规范：{n.code}", width, text_height):
-                        put(x + 2, cur_y, ln, text_height, layer)
-                        cur_y -= line_spacing
-                cur_y -= line_spacing * 0.25
-
-        # 三、引用规范
-        if notes.standards:
-            put(x, cur_y, "三、引用规范", text_height, layer)
-            cur_y -= line_spacing
-            for std in notes.standards:
-                put(x, cur_y, f"• {std}", text_height, layer)
-                cur_y -= line_spacing
-
-        # 四、特殊要求
-        if notes.special_requirements:
-            put(x, cur_y, "四、特殊要求", text_height, layer)
-            cur_y -= line_spacing
-            for req in notes.special_requirements:
-                for ln in self._wrap_text(f"• {req}", width, text_height):
-                    put(x, cur_y, ln, text_height, layer)
-                    cur_y -= line_spacing
-
-        return cur_y
+        items, _cur_y = self._notes_line_items(
+            notes, width, _ls, _th, _tht, layer, title_layer)
+        return self.draw_notes_items(items, x=x, y=y, target=target,
+                                     scale=scale)
 
     def add_construction_notes_by_discipline(self, discipline: str = 'architectural',
                                              custom_notes: List[str] = None,
@@ -516,7 +582,10 @@ class ConstructionNoteMixin:
                                              line_spacing: float = 3.5, text_height: float = 2.5,
                                              title_height: float = 4.0, scale: float = 100.0,
                                              target=None,
-                                             layer: str = 'G_TEXT', title_layer: str = 'G_TITLE'):
+                                             layer: str = 'G_TEXT', title_layer: str = 'G_TITLE',
+                                             max_height: Optional[float] = None,
+                                             auto_fit: bool = True,
+                                             min_text_height: float = 2.5):
         """按专业生成并添加施工说明（快捷入口）。"""
         gen = getattr(self, 'note_generator', None) or ConstructionNoteGenerator()
         notes = gen.generate_notes(discipline=discipline, custom_notes=custom_notes)
@@ -526,7 +595,9 @@ class ConstructionNoteMixin:
         return self.add_construction_notes(
             notes, x=x, y=y, width=width, line_spacing=line_spacing,
             text_height=text_height, title_height=title_height, scale=scale,
-            target=target, layer=layer, title_layer=title_layer)
+            target=target, layer=layer, title_layer=title_layer,
+            max_height=max_height, auto_fit=auto_fit,
+            min_text_height=min_text_height)
 
 
 # ============================================================
