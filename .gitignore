@@ -6,6 +6,10 @@ examples/out*/
 # 误建的嵌套目录（历史遗留）
 examples/examples/
 
+# 开发/调试辅助脚本（probe_* 探测脚本、_* 临时脚本，不入库）
+examples/probe_*.py
+examples/_*.py
+
 # 二进制/导出文件
 *.png
 *.pdf
