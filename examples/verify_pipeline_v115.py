@@ -72,7 +72,8 @@ def test_single():
           "⑦ 3D：包围盒 %s" % r.bbox_mm)
     check(bool(r.viewer_html) and os.path.exists(r.viewer_html),
           "⑦ 3D：可旋转 HTML")
-    check(len(r.steps) == 8, "8 个步骤槽位齐全")
+    # v1.17.10 起 [4.5] 清单报价是登记在册的正式槽位 → 共 9 个槽位（原为 8）
+    check(len(r.steps) == 9, "9 个步骤槽位齐全（含 [4.5] 报价）")
     check(all(s.ok for s in r.steps), "所有步骤（含跳过）状态正常")
 
     d = r.output_dir

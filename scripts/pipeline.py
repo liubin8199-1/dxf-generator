@@ -253,7 +253,8 @@ class PipelineResult:
             L.append("步骤")
             for s in self.steps:
                 mark = "⏭" if s.skipped else ("✅" if s.ok else "⚠️")
-                L.append("  %s [%d/%d] %-8s %-3.2fs  %s"
+                # %g：半号槽位 [4.5] 不能被 %d 截断成 [4]
+                L.append("  %s [%g/%d] %-8s %-3.2fs  %s"
                          % (mark, s.no, len(self.steps), s.name,
                             s.duration, s.detail))
             L.append("")
@@ -372,12 +373,17 @@ class Pipeline:
         self._steps = self.result.steps
         cfg = self.config
 
-        # 计划（含跳过项，保证编号稳定 1/8 ~ 8/8）
+        # 计划（含跳过项，保证编号稳定）。
+        # ★ v1.17.10 起因新增 [4.5] 清单报价（图纸驱动）槽位，实际是 9 个槽位。
+        #   4.5 必须登记在册：否则 `_plan_name` / `_is_enabled` 查不到会走默认值 →
+        #   ① 名称退化成 "步骤%d" % 4.5 == "步骤4"（%d 截断），与 [4] 说明撞名；
+        #   ② `_is_enabled` 恒 True，绕过 `do_budget_from_bom` 开关。
         plan = [
             (1, "出图", cfg.do_generate),
             (2, "识图", cfg.do_reader),
             (3, "算量", cfg.do_bom),
             (4, "说明", cfg.do_notes),
+            (4.5, "报价", cfg.do_budget_from_bom),
             (5, "审查", cfg.do_review),
             (6, "渲染", cfg.do_render),
             (7, "3D", cfg.do_export_3d),
@@ -415,7 +421,8 @@ class Pipeline:
         name = self._plan_name(no)
         st = StepResult(no=no, name=name)
         self._steps.append(st)
-        print("[%d/8] %s" % (no, name))
+        # %g 而非 %d：[4.5] 这类半号槽位不能被截断成 [4]，否则与 [4] 说明视觉撞车
+        print("[%g/8] %s" % (no, name))
         t = time.time()
         try:
             detail = fn() or ""
@@ -441,7 +448,8 @@ class Pipeline:
         for n, name, _ in getattr(self, "_plan", []):
             if n == no:
                 return name
-        return "步骤%d" % no
+        # 回退：用 %s 而非 %d，避免 4.5 被截断成 4 与 [4] 说明撞名
+        return "步骤%s" % no
 
     def _is_enabled(self, no: int) -> bool:
         for n, _, on in getattr(self, "_plan", []):
