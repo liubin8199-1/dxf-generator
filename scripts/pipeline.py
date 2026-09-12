@@ -160,6 +160,7 @@ class PipelineResult:
     notes_source: str = ""
     notes_count: int = 0
     notes_file: str = ""
+    notes_warning: str = ""            # 识图兜底警告（图别不确定时非空）
     notes_target: str = ""              # 'layout'（图纸空间说明栏）/ 'model'
     notes_pages: int = 0                # 说明占几个图幅（>1 = 有续页）
 
@@ -527,6 +528,8 @@ class Pipeline:
         self.result.understanding = {
             "drawing_type": info.drawing_type,
             "type_confidence": round(info.type_confidence, 3),
+            "type_margin": round(info.type_margin, 3),
+            "abstained": info.abstained,
             "entity_total": info.entity_total,
             "layer_count": info.layer_count,
             "rooms": texts[:8],
@@ -592,6 +595,22 @@ class Pipeline:
         if key is None:
             key, source = "floor_plan", "兜底默认"
 
+        # 识图兜底：图别来自"识图匹配"且不确定时，回退通用模板避免套错专业话术
+        self.result.notes_warning = ""
+        try:
+            from reader_fallback import ReaderFallback
+            if source == "识图匹配":
+                u = self.result.understanding or {}
+                fb = ReaderFallback(
+                    strict=getattr(self.config, "reader_strict", False))
+                r = fb.evaluate_from_info(u)
+                if r.needs_review:
+                    key, source = "floor_plan", "识图兜底"
+                    self.result.notes_warning = r.warning
+        except Exception:
+            # 兜底模块缺失不影响主流程
+            pass
+
         note_text = get_construction_notes(key, as_markdown=True)
         notes_file = os.path.join(out_dir, "construction_notes.md")
         with open(notes_file, "w", encoding="utf-8") as f:
@@ -599,6 +618,8 @@ class Pipeline:
             f.write("**NL 图别**：%s　|　**识图图别**：%s\n\n"
                     % (dtype or "—", cn or "—"))
             f.write("**话术类型**：`%s`（%s）\n\n" % (key, source))
+            if self.result.notes_warning:
+                f.write("> %s\n\n" % self.result.notes_warning)
             f.write("**生成时间**：%s\n\n"
                     % datetime.now().strftime("%Y-%m-%d %H:%M"))
             f.write("---\n\n")
