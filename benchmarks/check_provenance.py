@@ -1,0 +1,170 @@
+# -*- coding: utf-8 -*-
+"""check_provenance — 样本来源取证闸门（v1.17.6）
+
+**为什么必须有它**：2026-09-12 出过一次样本污染事故 —— 13 张"以为是真的外部图纸"
+被扩进评测集，实际全是本机 `ezdxf` 脚本产物（4 张还内嵌『AI 平面示意草图·非施工图』
+自述文字）。混入后总认错率从 85.7% "改善"到 71.4%，**是稀释不是进步**。
+根源：只按"图层名不含 G_ 前缀"判来源，而 `AXIS/WALL/AREA/NOTE` 这类层同样出自脚本。
+
+**判定依据（按可靠性）**：
+  1. 内嵌自述文字含『AI 平面 / 示意草图 / 非施工图 / 待现场测绘』 → self_generated（铁证）
+  2. `$LASTSAVEDBY == 'ezdxf'`（或含 ezdxf）            → self_generated
+  3. `$LASTSAVEDBY` 是真人名（Administrator/妖怪/w…）    → external
+  4. `$LASTSAVEDBY` 为空（如 aspose 转换丢元数据）        → unknown，须人工归入 MANUAL
+
+用法：
+    python benchmarks/check_provenance.py          # 体检 + 报告（不写盘）
+    python benchmarks/check_provenance.py --apply  # 把取证结论写回 ground_truth.json
+    python benchmarks/check_provenance.py --gate   # 与已记录结论比对，不符或出现 unknown → exit 1
+
+★ 扩样本 SOP：`import_samples.py` 导入后，先跑 --apply 归类，再跑 --gate 确认，
+  最后才 `eval.py`。**未经取证的样本不得进入评测集。**
+"""
+import os
+import sys
+import json
+import argparse
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, "..", "scripts"))
+
+import ezdxf  # noqa: E402
+
+GT = os.path.join(HERE, "ground_truth.json")
+RAW = os.path.join(HERE, "raw")
+
+# 自动规则判不了、需人工归类的样本（附人工判定理由，别让"unknown"静默混过去）
+MANUAL = {
+    "荣和大地店_平面布置图20200307.dxf":
+        ("external",
+         "真实 DWG（3050 实体：LWPOLYLINE 1871 + HATCH 1177）经 aspose CONVERT；"
+         "转换会丢弃 $LASTSAVEDBY 与图层表（仅剩 0/Defpoints），故自动规则判不了"),
+}
+
+SELF_MARKERS = ["AI 平面", "AI平面", "示意草图", "非施工图", "待现场测绘",
+                "反算", "须现场复核", "自动生成"]
+
+
+def classify(doc):
+    """返回 (provenance, evidence, markers)。provenance ∈ external/self_generated/unknown"""
+    # 1) 内嵌自述（最强证据）
+    markers = set()
+    for e in doc.modelspace():
+        if e.dxftype() in ("TEXT", "MTEXT"):
+            t = (e.dxf.text if e.dxftype() == "TEXT" else e.text) or ""
+            for mk in SELF_MARKERS:
+                if mk in t:
+                    markers.add(mk)
+
+    try:
+        last_saved = str(doc.header.get("$LASTSAVEDBY", "") or "").strip()
+    except Exception:
+        last_saved = ""
+
+    n_layers = len(list(doc.layers))
+    n_ent = len(doc.modelspace())
+
+    if markers:
+        return ("self_generated",
+                "内嵌自述 %s（铁证）；LASTSAVEDBY=%r" % (sorted(markers), last_saved),
+                markers)
+    if "ezdxf" in last_saved.lower():
+        return ("self_generated",
+                "LASTSAVEDBY=%r（Python 脚本产出），%d 图层/%d 实体" % (
+                    last_saved, n_layers, n_ent),
+                markers)
+    if last_saved:
+        return ("external",
+                "LASTSAVEDBY=%r（真实出图用户），%d 图层/%d 实体" % (
+                    last_saved, n_layers, n_ent),
+                markers)
+    return ("unknown",
+            "LASTSAVEDBY 为空（疑为格式转换丢失元数据），%d 图层/%d 实体 → 须人工归类" % (
+                n_layers, n_ent),
+            markers)
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="样本来源取证闸门")
+    ap.add_argument("--apply", action="store_true", help="把结论写回 ground_truth.json")
+    ap.add_argument("--gate", action="store_true", help="不符/出现 unknown 时 exit 1")
+    args = ap.parse_args(argv)
+
+    with open(GT, "r", encoding="utf-8") as f:
+        gt = json.load(f)
+    samples = gt.get("samples", [])
+
+    print("=" * 78)
+    print("样本来源取证 · 自产样本会【稀释】认错率，不得混入能力证据")
+    print("=" * 78)
+
+    changed, unknown, mismatch = [], [], []
+    for s in samples:
+        name = s.get("file", "")
+        p = os.path.join(RAW, name)
+        if not os.path.exists(p):
+            p = s.get("source", "")
+        if not p or not os.path.exists(p):
+            print("[缺文件] %s" % name)
+            continue
+        try:
+            doc = ezdxf.readfile(p)
+        except Exception as e:
+            print("[读取失败] %s : %s" % (name, e))
+            continue
+
+        if name in MANUAL:
+            prov, ev = MANUAL[name]
+            ev = "人工判定：" + ev
+        else:
+            prov, ev, _ = classify(doc)
+
+        old = s.get("provenance")
+        if old != prov:
+            changed.append((name, old, prov))
+        if prov == "unknown":
+            unknown.append(name)
+
+        flag = "✅" if old == prov else "⚠️"
+        print("%s %-44s %s" % (flag, name[:42], prov))
+        print("      %s" % ev)
+        if old and old != prov:
+            print("      ↑ 记录为 %r，实测为 %r —— 已更正" % (old, prov))
+            mismatch.append(name)
+
+        if args.apply:
+            s["provenance"] = prov
+            s["provenance_evidence"] = ev
+
+    ext = [s for s in samples if s.get("provenance") == "external"]
+    gen = [s for s in samples if s.get("provenance") == "self_generated"]
+    unk = [s for s in samples if s.get("provenance") == "unknown"]
+    print("-" * 78)
+    print("external=%d  self_generated=%d  unknown=%d  合计=%d" % (
+        len(ext), len(gen), len(unk), len(samples)))
+    if gen:
+        print("⚠️ 自产 %d 张已入库 —— `eval.py` 会单独分组，报数只认 external。" % len(gen))
+
+    if args.apply:
+        with open(GT, "w", encoding="utf-8") as f:
+            json.dump(gt, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+        print("已写回 %s" % GT)
+
+    rc = 0
+    if args.gate:
+        if unknown:
+            print("❌ 闸门未通过：%d 张来源未定（%s）→ 须补进 MANUAL 人工归类" % (
+                len(unknown), ", ".join(unknown[:5])))
+            rc = 1
+        if mismatch:
+            print("❌ 闸门未通过：%d 张来源结论与记录不符（%s）→ 跑 --apply 更正" % (
+                len(mismatch), ", ".join(mismatch[:5])))
+            rc = 1
+        if rc == 0:
+            print("✅ 闸门通过：全部样本来源已定性且与记录一致。")
+    return rc
+
+
+if __name__ == "__main__":
+    sys.exit(main())

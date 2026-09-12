@@ -1,10 +1,10 @@
 {
-  "version": "1.0",
-  "description": "识图评测真值表（v1.17.4 · B 路线）。当前为 v1.17.1 已用过的 7 张真实图纸；目标扩到 30~50 张后再改识别规则（7 张调阈值必过拟合）。",
+  "version": "1.2",
+  "description": "识图评测真值表（v1.17.6 · B 路线）。共 21 张 = 外部真实 8 张（01~06 + 牧马中央空调 + 荣和大地店）+ 本机脚本自产 13 张（桃花源60# 系列 12 张 + 剖面图_1-1）。⚠️ 2026-09-12 取证更正：原以为新增 13 张是『真实外部图纸』，实为 LASTSAVEDBY=ezdxf 的脚本产物（4 张内嵌『AI 平面示意草图』自述），混入会把认错率从 85.7% 稀释到 71.4%。★ 报数必须以 external 分组为准：严格正确 0/8、认错 7/8 (87.5%)。",
   "vocab_note": "系统识图类型域共 34 类（见 drawing_reader.TYPE_BY_KEYWORDS / TYPE_BY_LAYERS）。真值不在域内时标 oov=true：此时【正确做法是拒识】(inferred 为空)，拒识不计入认错。",
   "metric_note": "认错 = 有输出(inferred 非空) 且 不严格正确 且 不宽松正确。⚠️ 必须报『认错率』，不能只报『有没有识别』——旧口径『识别成功 100%』是假指标（只统计有没有输出，不统计对不对）。",
   "source_dir": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf",
-  "source_note": "source 指向 DWG→DXF 预处理后的副本（p_ 前缀 = 已剥 OBJECTS 段 + 删缺名表记录，7/7 可读）。benchmarks/raw/ 可放同名副本以脱离外部路径；raw/ 不入库（见 .gitignore）。",
+  "source_note": "新增 13 张源为 C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\（已拷入 raw/，可脱离外部路径）。基线 7 张 source 指向 dwg_probe/out_dxf。",
   "samples": [
     {
       "file": "01 材料表.dxf",
@@ -12,55 +12,265 @@
       "family": [],
       "oov": true,
       "source": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf\\p_01 材料表.dxf",
-      "notes": "模型空间仅 996 实体（主体在 Layout1）。系统无『材料表』类型 → 正确做法是拒识。实测识成『火灾报警图』（模板图例污染）。"
+      "notes": "模型空间仅 996 实体（主体在 Layout1）。系统无『材料表』类型 → 正确做法是拒识。实测识成『火灾报警图』（模板图例污染）。",
+      "provenance": "external",
+      "provenance_evidence": "LASTSAVEDBY=Administrator，AC1021，120 图层（A建墙/A窗电梯 设计院模板）"
     },
     {
       "file": "02 通用剖面图.dxf",
       "type": "剖面图",
-      "family": ["剖面图", "结构图"],
+      "family": [
+        "剖面图",
+        "结构图"
+      ],
       "oov": false,
       "source": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf\\p_02 通用剖面图.dxf",
-      "notes": "水平构造层 + 引出线。"
+      "notes": "水平构造层 + 引出线。",
+      "provenance": "external",
+      "provenance_evidence": "LASTSAVEDBY=Administrator，AC1021，188 图层"
     },
     {
       "file": "03 1F.dxf",
       "type": "平面图",
-      "family": ["平面图", "基础平面图"],
+      "family": [
+        "平面图",
+        "基础平面图"
+      ],
       "oov": false,
       "source": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf\\p_03 1F.dxf",
-      "notes": "首层平面，模型空间约 2.9 万实体（实体数量级本身是强信号）。"
+      "notes": "首层平面，模型空间约 2.9 万实体（实体数量级本身是强信号）。",
+      "provenance": "external",
+      "provenance_evidence": "LASTSAVEDBY=Administrator，AC1021，212 图层（0-结构/1-FF平面文字）"
     },
     {
       "file": "04 -1F.dxf",
       "type": "平面图",
-      "family": ["平面图", "基础平面图"],
+      "family": [
+        "平面图",
+        "基础平面图"
+      ],
       "oov": false,
       "source": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf\\p_04 -1F.dxf",
-      "notes": "地下一层平面。"
+      "notes": "地下一层平面。",
+      "provenance": "external",
+      "provenance_evidence": "LASTSAVEDBY=Administrator，AC1024，195 图层"
     },
     {
       "file": "05 2F.dxf",
       "type": "平面图",
-      "family": ["平面图", "基础平面图"],
+      "family": [
+        "平面图",
+        "基础平面图"
+      ],
       "oov": false,
       "source": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf\\p_05 2F.dxf",
-      "notes": "二层平面。"
+      "notes": "二层平面。",
+      "provenance": "external",
+      "provenance_evidence": "LASTSAVEDBY=妖怪，AC1021，137 图层"
     },
     {
       "file": "06 3F.dxf",
       "type": "平面图",
-      "family": ["平面图", "基础平面图"],
+      "family": [
+        "平面图",
+        "基础平面图"
+      ],
       "oov": false,
       "source": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf\\p_06 3F.dxf",
-      "notes": "三层平面。"
+      "notes": "三层平面。",
+      "provenance": "external",
+      "provenance_evidence": "LASTSAVEDBY=w，AC1018，170 图层"
     },
     {
       "file": "牧马中央空调、新风、地暖施工图.dxf",
       "type": "暖通图",
-      "family": ["空调系统图", "防排烟图"],
+      "family": [
+        "空调系统图",
+        "防排烟图"
+      ],
       "oov": false,
       "source": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf\\p_牧马中央空调、新风、地暖施工图.dxf",
-      "notes": "空调/新风/地暖三合一。"
+      "notes": "空调/新风/地暖三合一。",
+      "provenance": "external",
+      "provenance_evidence": "LASTSAVEDBY=Administrator，AC1021，469 图层"
+    },
+    {
+      "file": "桃花源60#_一层_施工图_A1.dxf",
+      "type": "平面图",
+      "family": [
+        "平面图",
+        "基础平面图"
+      ],
+      "oov": false,
+      "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_一层_施工图_A1.dxf",
+      "notes": "真实施工图·首层平面（284 实体，真实图层 WALL/DOOR/CEN）",
+      "provenance": "self_generated",
+      "provenance_evidence": "LASTSAVEDBY=ezdxf（Python 脚本产出），仅 13 个自定图层"
+    },
+    {
+      "file": "桃花源60#_二层_施工图_A1.dxf",
+      "type": "平面图",
+      "family": [
+        "平面图",
+        "基础平面图"
+      ],
+      "oov": false,
+      "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_二层_施工图_A1.dxf",
+      "notes": "真实施工图·二层平面（297 实体）",
+      "provenance": "self_generated",
+      "provenance_evidence": "LASTSAVEDBY=ezdxf，仅 13 个自定图层"
+    },
+    {
+      "file": "桃花源60#_地下一层_施工图_A1.dxf",
+      "type": "平面图",
+      "family": [
+        "平面图",
+        "基础平面图"
+      ],
+      "oov": false,
+      "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_地下一层_施工图_A1.dxf",
+      "notes": "真实施工图·地下一层平面（285 实体）",
+      "provenance": "self_generated",
+      "provenance_evidence": "LASTSAVEDBY=ezdxf，仅 13 个自定图层"
+    },
+    {
+      "file": "桃花源60#_地下二层_施工图_A1.dxf",
+      "type": "平面图",
+      "family": [
+        "平面图",
+        "基础平面图"
+      ],
+      "oov": false,
+      "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_地下二层_施工图_A1.dxf",
+      "notes": "真实施工图·地下二层平面（375 实体）",
+      "provenance": "self_generated",
+      "provenance_evidence": "LASTSAVEDBY=ezdxf，仅 13 个自定图层"
+    },
+    {
+      "file": "桃花源60#_室内立面图一_A1.dxf",
+      "type": "立面图",
+      "family": [
+        "立面图"
+      ],
+      "oov": false,
+      "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_室内立面图一_A1.dxf",
+      "notes": "真实施工图·室内立面一（200 实体）",
+      "provenance": "self_generated",
+      "provenance_evidence": "LASTSAVEDBY=ezdxf，仅 14 个自定图层"
+    },
+    {
+      "file": "桃花源60#_室内立面图二_A1.dxf",
+      "type": "立面图",
+      "family": [
+        "立面图"
+      ],
+      "oov": false,
+      "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_室内立面图二_A1.dxf",
+      "notes": "真实施工图·室内立面二（200 实体）",
+      "provenance": "self_generated",
+      "provenance_evidence": "LASTSAVEDBY=ezdxf，仅 14 个自定图层"
+    },
+    {
+      "file": "桃花源60#_建筑立面图_A1.dxf",
+      "type": "立面图",
+      "family": [
+        "立面图"
+      ],
+      "oov": false,
+      "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_建筑立面图_A1.dxf",
+      "notes": "真实施工图·建筑立面（198 实体）",
+      "provenance": "self_generated",
+      "provenance_evidence": "LASTSAVEDBY=ezdxf，仅 14 个自定图层"
+    },
+    {
+      "file": "桃花源60#_施工说明及材料清单_A1.dxf",
+      "type": "施工说明及材料清单",
+      "family": [],
+      "oov": true,
+      "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_施工说明及材料清单_A1.dxf",
+      "notes": "OOV：系统类型域无「施工说明/材料清单」→ 正确做法是拒识",
+      "provenance": "self_generated",
+      "provenance_evidence": "LASTSAVEDBY=ezdxf，仅 14 个自定图层"
+    },
+    {
+      "file": "桃花源60#_一层平面示意_155平.dxf",
+      "type": "平面图",
+      "family": [
+        "平面图",
+        "基础平面图"
+      ],
+      "oov": false,
+      "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_一层平面示意_155平.dxf",
+      "notes": "真实平面示意图（47 实体，稀疏）",
+      "provenance": "self_generated",
+      "provenance_evidence": "LASTSAVEDBY=ezdxf + 内嵌自述『AI 平面示意草图·非施工图』（铁证）"
+    },
+    {
+      "file": "桃花源60#_二层平面示意_146平.dxf",
+      "type": "平面图",
+      "family": [
+        "平面图",
+        "基础平面图"
+      ],
+      "oov": false,
+      "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_二层平面示意_146平.dxf",
+      "notes": "真实平面示意图（47 实体，稀疏）",
+      "provenance": "self_generated",
+      "provenance_evidence": "LASTSAVEDBY=ezdxf + 内嵌自述『AI 平面示意草图·非施工图』（铁证）"
+    },
+    {
+      "file": "桃花源60#_地下一层平面示意_135平.dxf",
+      "type": "平面图",
+      "family": [
+        "平面图",
+        "基础平面图"
+      ],
+      "oov": false,
+      "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_地下一层平面示意_135平.dxf",
+      "notes": "真实平面示意图（仅 6 实体 → 近空图，边界样本）",
+      "provenance": "self_generated",
+      "provenance_evidence": "LASTSAVEDBY=ezdxf + 内嵌自述『AI 平面示意草图·非施工图』『待现场测绘补录』（铁证）"
+    },
+    {
+      "file": "桃花源60#_地下二层平面示意_265平.dxf",
+      "type": "平面图",
+      "family": [
+        "平面图",
+        "基础平面图"
+      ],
+      "oov": false,
+      "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_地下二层平面示意_265平.dxf",
+      "notes": "真实平面示意图（73 实体）",
+      "provenance": "self_generated",
+      "provenance_evidence": "LASTSAVEDBY=ezdxf + 内嵌自述『AI 平面示意草图·非施工图』（铁证）"
+    },
+    {
+      "file": "剖面图_1-1.dxf",
+      "type": "剖面图",
+      "family": [
+        "剖面图",
+        "结构图"
+      ],
+      "oov": false,
+      "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\剖面图_1-1.dxf",
+      "notes": "真实剖面图（56 实体，SEC_* 专业图层）",
+      "provenance": "self_generated",
+      "provenance_evidence": "LASTSAVEDBY=ezdxf，17 图层含 SEC_HATCH/SEC_SLAB 等自定层（与桃花源60# 同源）"
+    },
+    {
+      "file": "荣和大地店_平面布置图20200307.dxf",
+      "type": "平面图",
+      "family": [
+        "平面图",
+        "基础平面图"
+      ],
+      "oov": false,
+      "source": "C:/Users/binliu8199/OneDrive/Documents/旧机Administrator文档/东辰文件/荣和大地店/平面布置图20200307.dwg",
+      "notes": "真实 DWG（商铺平面布置图 2020 外部来源）经 aspose CONVERT 转 DXF + 剥 OBJECTS。",
+      "provenance": "external",
+      "provenance_evidence": "真实 DWG（AC1018，3050 实体：LWPOLYLINE 1871 + HATCH 1177）经 aspose CONVERT"
     }
-  ]
+  ],
+  "updated": "2026-09-12",
+  "provenance_note": "★ 来源分两类：external=真实 AutoCAD 用户出图（唯一能衡量真实识别能力的分母）；self_generated=本机 Python/ezdxf 脚本产出（同源，含 4 张内嵌『AI 平面示意草图』自述）。判定依据 LASTSAVEDBY：'ezdxf'=脚本产出，人名=真实用户。⚠️ 把 self_generated 混入总分会把认错率【稀释】成假改善，报数必须以 external 分组为准。"
 }
