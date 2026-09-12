@@ -1,8 +1,8 @@
 ---
 name: dxf-generator
-description: 用自然语言生成 DXF 矢量图纸的 Skill。封装 ezdxf 核心能力（文档/模型空间/图元/图层/保存/图纸空间），提供高层绘图库 dxfkit.py，让 Agent 把"画一个XX平面图/零件图/布置图/电气图"直接转成可打开的 .dxf 文件。无需安装 AutoCAD。支持五大功能：导入修改、参数化模板、批量处理、样式系统、自然语言分发；扩展模块含 geomkit 高级几何（齿轮/螺旋/贝塞尔）、archkit 建筑标准（轴网/双线墙/门窗/楼梯/图框/户型生成器）、budget 造价预算与采购清单、templates_arch 建筑专业（立面/剖面/节点大样/楼梯详图）、templates_struct 结构专业（钢筋符号/柱/板/基础/楼梯配筋）、templates_mep 机电专业（电气符号/电气图例/照明平面）；**GB/T 国标标准化**：gb_standards.py 提供 48 个国标图层、标准线型/线宽、符号/文字/图框标准与 GBDxfBuilder（A0~A4 图框+标题栏+1:100 视口，可直接出全套施工图）；**中文字体支持**：font_manager.py 自动注册 GB_CHINESE/GB_TITLE/GB_MULTILINE 样式（gbenor.shx + gbcbig.shx），所有含 CJK 的 TEXT/MTEXT 实体自动绑定中文样式，杜绝「中文显示为 ??」乱码；**施工说明模块**：construction_notes.py 按 GB 系列规范自动生成各专业施工说明（一般/土方/基础/主体/砌体/屋面/装饰/给排水/电气/暖通/消防/安全），一行 API 即可把说明写入图纸空间说明栏或模型空间；**施工规范引用模块**：construction_codes.py 内置 GB/JGJ 规范库 64 条×13 类，按图纸类型/专业自动匹配 强条/推荐/参考，CodeAwareDxfBuilder 一行把规范清单画进图纸空间或模型空间；**图纸管理全套**：drawing_management.py（图纸编号系统/目录/图签+会签栏/门窗表/材料做法表/结构设计说明/设备材料表/工程量清单 + CompleteDrawingManager 一键出全部表格）；**高级专业模板**：templates_advanced.py 十个模块——总平面图、防火分区·消防疏散图、空调系统图、防排烟系统图、雨水系统图、火灾报警系统图、智能化系统图、施工进度横道图、施工总平面图、钢结构详图（钢柱/钢梁）；**图纸审查系统**：v1.8.0 起 drawing_review.py 对图纸做 图层/图框/文字/尺寸/完整性/规范引用 六项自动检查，出 A~D 评级报告（文本 + 写入 DXF），ReviewAwareDxfBuilder 支持一行 .review()，BatchReviewer 批量汇总；**自然语言生成图纸**：v1.9.0 起 natural_language_engine.py 把中文描述（如「12x8 米三层住宅平面图带客厅厨房卧室」）按规则解析 → dispatch 到 26 类真实模板函数（含 ③ 层 7 类节点大样：16G101 混凝土 4 类「梁柱节点/楼梯节点/基础节点/桩基节点」+ GB 50017 钢结构 3 类「钢柱脚/钢梁柱栓焊混接/钢梁拼接」）→ 一键出图，NLAwareDxfBuilder 提供 `generate_from_text(text)`/`parse_text(text)` 入口；**识图评测集** `benchmarks/`（v1.17.6 起）：真实图纸真值表（含 `provenance` 来源字段）+ `eval.py` 报「严格/宽松/拒识/空答/**认错**」五口径并**按来源分组**（认错率只认 `external` 真实出图样本）+ `check_provenance.py` 来源取证闸门（用 `$LASTSAVEDBY` 识别自产样本，防止稀释指标；对 `aspose` 等**抹掉元数据的转换产物**另有**结构指纹兜底**：`$ACADVER` + 实体量级 + 图层数）；**DWG→DXF 预处理** `examples/dxf_prepare.py`（v1.17.8）：剥 OBJECTS 段 / 删畸形表记录 / 剥离缩略图 XDATA / 二进制块归一 / **补三处结构缺陷**（漏写的 `SEQEND`，含 `66=1` 声明但无 ATTRIB 的情形）/ **补未闭合 SECTION 的 `ENDSEC`** / **删空句柄组**，自带**组数守恒断言 + 两道结构自检**，不守恒即抛错拒写；**统一验证入口** `examples/verify_all.py`（v1.17.5）：一句话跑完全部 verify 套件并汇总；**一键流水线**：v1.16.0 起 pipeline.py 把「出图→识图→算量→施工说明→审查→渲染→3D体量→汇总」串成一条链，`pipeline("一句话", out_dir)` 一次产出全套交付包（DXF + 工程量清单 4 格式 + 施工说明 + 识图报告 + 审查报告 + 3D 模型/HTML + manifest 清单），单条约 2.7 秒；**v1.17.0 起施工说明自动写入图纸空间说明栏**（按国标图框几何算出，装不下自动分页为「说明续页」图幅），模型空间保持干净；新增**成品图幅渲染**（`space='paper'`，出图框+标题栏+说明栏+视口图形的打印效果图），并修复 `add_gb_sheet` 从 v1.14 起就存在的**视口比例 bug**（`add_viewport` 第 4 参是 view_height 不是比例，导致视口只看到 0.01mm 切片）；**v1.17.1 起识图读取通用化**：`drawing_reader` 增加容错加载（严格失败自动退 recover）与 `\U+XXXX` 中文转义解码（外部软件转出的真实图纸图层名常写成 `IRC\U+5929\U+82B1`，不解码会让按图层名匹配的规则静默失效），并容忍无名图层；配套 `examples/dxf_prepare.py` 做 DXF 预处理（剥 OBJECTS 段 + 删缺名字的表记录），`examples/dwg2dxf_convert.py` 用 aspose-cad 的 `CadOutputMode.CONVERT` 把 DWG 忠实转 DXF。
+description: 用自然语言生成 DXF 矢量图纸的 Skill。封装 ezdxf 核心能力（文档/模型空间/图元/图层/保存/图纸空间），提供高层绘图库 dxfkit.py，让 Agent 把"画一个XX平面图/零件图/布置图/电气图"直接转成可打开的 .dxf 文件。无需安装 AutoCAD。支持五大功能：导入修改、参数化模板、批量处理、样式系统、自然语言分发；扩展模块含 geomkit 高级几何（齿轮/螺旋/贝塞尔）、archkit 建筑标准（轴网/双线墙/门窗/楼梯/图框/户型生成器）、budget 造价预算与采购清单、templates_arch 建筑专业（立面/剖面/节点大样/楼梯详图）、templates_struct 结构专业（钢筋符号/柱/板/基础/楼梯配筋）、templates_mep 机电专业（电气符号/电气图例/照明平面）；**GB/T 国标标准化**：gb_standards.py 提供 48 个国标图层、标准线型/线宽、符号/文字/图框标准与 GBDxfBuilder（A0~A4 图框+标题栏+1:100 视口，可直接出全套施工图）；**中文字体支持**：font_manager.py 自动注册 GB_CHINESE/GB_TITLE/GB_MULTILINE 样式（gbenor.shx + gbcbig.shx），所有含 CJK 的 TEXT/MTEXT 实体自动绑定中文样式，杜绝「中文显示为 ??」乱码；**施工说明模块**：construction_notes.py 按 GB 系列规范自动生成各专业施工说明（一般/土方/基础/主体/砌体/屋面/装饰/给排水/电气/暖通/消防/安全），一行 API 即可把说明写入图纸空间说明栏或模型空间；**施工规范引用模块**：construction_codes.py 内置 GB/JGJ 规范库 64 条×13 类，按图纸类型/专业自动匹配 强条/推荐/参考，CodeAwareDxfBuilder 一行把规范清单画进图纸空间或模型空间；**图纸管理全套**：drawing_management.py（图纸编号系统/目录/图签+会签栏/门窗表/材料做法表/结构设计说明/设备材料表/工程量清单 + CompleteDrawingManager 一键出全部表格）；**高级专业模板**：templates_advanced.py 十个模块——总平面图、防火分区·消防疏散图、空调系统图、防排烟系统图、雨水系统图、火灾报警系统图、智能化系统图、施工进度横道图、施工总平面图、钢结构详图（钢柱/钢梁）；**图纸审查系统**：v1.8.0 起 drawing_review.py 对图纸做 图层/图框/文字/尺寸/完整性/规范引用 六项自动检查，出 A~D 评级报告（文本 + 写入 DXF），ReviewAwareDxfBuilder 支持一行 .review()，BatchReviewer 批量汇总；**自然语言生成图纸**：v1.9.0 起 natural_language_engine.py 把中文描述（如「12x8 米三层住宅平面图带客厅厨房卧室」）按规则解析 → dispatch 到 26 类真实模板函数（含 ③ 层 7 类节点大样：16G101 混凝土 4 类「梁柱节点/楼梯节点/基础节点/桩基节点」+ GB 50017 钢结构 3 类「钢柱脚/钢梁柱栓焊混接/钢梁拼接」）→ 一键出图，NLAwareDxfBuilder 提供 `generate_from_text(text)`/`parse_text(text)` 入口；**识图评测集** `benchmarks/`（v1.17.6 起）：真实图纸真值表（含 `provenance` 来源字段）+ `eval.py` 报「严格/宽松/拒识/空答/**认错**」五口径并**按来源分组**（认错率只认 `external` 真实出图样本）+ `check_provenance.py` 来源取证闸门（用 `$LASTSAVEDBY` 识别自产样本，防止稀释指标；对 `aspose` 等**抹掉元数据的转换产物**另有**结构指纹兜底**：`$ACADVER` + 实体量级 + 图层数）；**DWG→DXF 预处理** `examples/dxf_prepare.py`（v1.17.8）：剥 OBJECTS 段 / 删畸形表记录 / 剥离缩略图 XDATA / 二进制块归一 / **补三处结构缺陷**（漏写的 `SEQEND`，含 `66=1` 声明但无 ATTRIB 的情形）/ **补未闭合 SECTION 的 `ENDSEC`** / **删空句柄组**，自带**组数守恒断言 + 两道结构自检**，不守恒即抛错拒写；**统一验证入口** `examples/verify_all.py`（v1.17.5）：一句话跑完全部 verify 套件并汇总；**一键流水线**：v1.16.0 起 pipeline.py 把「出图→识图→算量→施工说明→审查→渲染→3D体量→汇总」串成一条链，`pipeline("一句话", out_dir)` 一次产出全套交付包（DXF + 工程量清单 4 格式 + 施工说明 + 识图报告 + 审查报告 + 3D 模型/HTML + manifest 清单），单条约 2.7 秒；**v1.17.0 起施工说明自动写入图纸空间说明栏**（按国标图框几何算出，装不下自动分页为「说明续页」图幅），模型空间保持干净；新增**成品图幅渲染**（`space='paper'`，出图框+标题栏+说明栏+视口图形的打印效果图），并修复 `add_gb_sheet` 从 v1.14 起就存在的**视口比例 bug**（`add_viewport` 第 4 参是 view_height 不是比例，导致视口只看到 0.01mm 切片）；**v1.17.1 起识图读取通用化**：`drawing_reader` 增加容错加载（严格失败自动退 recover）与 `\U+XXXX` 中文转义解码（外部软件转出的真实图纸图层名常写成 `IRC\U+5929\U+82B1`，不解码会让按图层名匹配的规则静默失效），并容忍无名图层；配套 `examples/dxf_prepare.py` 做 DXF 预处理（剥 OBJECTS 段 + 删缺名字的表记录），`examples/dwg2dxf_convert.py` 用 aspose-cad 的 `CadOutputMode.CONVERT` 把 DWG 忠实转 DXF。**v1.17.9 起识图支持「弃权」**：`DrawingInfo` 新增 `type_margin`（决策裕度 = top1-top2）/ `abstained` / `abstain_reason`，低置信或**并列**时拒绝作答并把图别回退为占位符 `"未识别"`（保持字符串契约、不写 None，避免下游崩）；配套 `score_drawing_types()` / `infer_drawing_type_ex()` / `set_abstain_thresholds()`，`eval.py` 新增 `--abstain-conf` / `--abstain-margin` / `--sweep`。★ 实证结论：**置信度阈值是空操作**（conf 仅 {0.0,0.5,0.7} 三档且对错两组完全重叠，0.3/0.4/0.5 与关闭逐桶相同），**决策裕度 margin 才有判别力**（margin≥0.2 → 自信答错 16→3 且严格正确零损失）；门槛**默认关闭**以保基线可复现，翻转前须先把 external 扩到 ≥30 张。
 category: engineering-cad
-version: 1.17.8
+version: 1.17.9
 author: 小海(WorkBuddy)
 ---
 
@@ -1892,4 +1892,99 @@ B 方案（全批 188 张 + 改框架支持"真值=图别集合"）待 A 落地�
 ### 六、最终总验证
 **20 套件全绿 · 522 项可计数断言 · 0 失败**（约 1 分 21 秒）。
 新增 `examples/verify_prepare.py` **53/53**（已注册进 `verify_all.py` 的 `SUITE_NAMES`）。
+
+---
+
+## v1.17.9 · 识图「弃权」能力落地 + 阈值实证（★ 幂等性：默认关闭，基线零变化）
+
+> 承接 v1.17.8 的结论：**识别率不可对外承诺**（external n=26：严格正确 3、★认错 19）。
+> 压认错率继续调关键词 = 过拟合小样本，**唯一可行路径是给识图加「弃权」** ——
+> 低置信/并列时拒绝作答，把「自信答错」转成「空答」。
+
+### 一、`DrawingInfo` 新增三字段（`scripts/drawing_reader.py`）
+
+| 字段 | 含义 | 默认 |
+|---|---|---|
+| `type_margin: float` | **决策裕度 = top1 - top2**（"赢得多干净"），**总是**计算 | `0.0` |
+| `abstained: bool` | 系统是否拒绝作答（True 时 `drawing_type` 为占位符） | `False` |
+| `abstain_reason: str` | 弃权原因（人读，便于复盘） | `""` |
+
+**★ 关键设计决策：弃权时 `drawing_type` 仍写占位符 `"未识别"`，不写 `None`。**
+理由：`pipeline.py` / `construction_notes_v2.py` / 各 demo / `to_dict()` / `to_markdown()`
+**全部按字符串处理**（`info.drawing_type or "未识别"`、`%s` 格式化）。
+改成 `None` 会让这些调用点从"拿不到答案"退化成"崩掉"，而收益（区分"未识别"与"没答案"）
+已由 `abstained` 布尔字段提供 —— **占位符保持原样，弃权语义另立字段**。
+
+### 二、新增 API（向后兼容）
+
+- `score_drawing_types(layer, texts, filename="") -> Dict[str, float]`
+  —— 返回**全部候选**的得分（原 `infer_drawing_type` 只看 top1，看不到 margin）。
+- `infer_drawing_type_ex(...) -> (类型, 置信度, 裕度, 证据)`
+  —— 四元组；**旧 `infer_drawing_type` 保持三元组不变**，内部转调 `_ex`。
+- `set_abstain_thresholds(conf=..., margin=...)` —— 运行时改门槛（供评测扫阈值，不必改源码）。
+- 常量 `PLACEHOLDER_TYPE = "未识别"`、`ABSTAIN_CONF_THRESHOLD`、`ABSTAIN_MARGIN_THRESHOLD`。
+
+### 三、★★ 阈值实证：置信度没用，**决策裕度才是唯一有判别力的信号**
+
+`eval.py --sweep`（external n=26，真实代码路径）：
+
+| 阈值 (conf, margin) | 严格正确 | 宽松 | 拒识 | 空答 | 自信答错 | ★认错 | 危险率 |
+|---|---|---|---|---|---|---|---|
+| **(0.0, 0.0) 现状** | 3 | 1 | 3 | 3 | **16** | 19 (73.1%) | 61.5% |
+| (0.3, 0.0) ← 直觉方案 | 3 | 1 | 3 | 3 | **16** | 19 (73.1%) | 61.5% |
+| (0.5, 0.0) | 3 | 1 | 3 | 3 | **16** | 19 (73.1%) | 61.5% |
+| (0.6, 0.0) | **1** | 0 | 4 | 16 | 5 | **21 (80.8%)** | 19.2% |
+| **(0.0, 0.2)** ← 实测最优 | **3** | 0 | 4 | 16 | **3** | 19 (73.1%) | **11.5%** |
+| (0.0, 0.3) | **2** | 0 | 5 | 19 | **0** | 19 (73.1%) | 0.0% |
+| (0.7, 0.2) | 1 | 0 | 4 | 18 | 3 | **21 (80.8%)** | 11.5% |
+
+**三条硬结论**：
+
+1. **置信度阈值是空操作**：`conf` 只有 `{0.0, 0.5, 0.7}` 三档，
+   3 张严格正确的 conf（0.5/0.5/0.7）与 16 张自信答错的 conf
+   （0.0×3 / 0.5×10 / 0.7×3）**完全重叠**。门槛 0.3/0.4/0.5 与"关闭"**逐桶完全相同**
+   （因为 `conf<0.3` ⟺ `conf==0` ⟺ 本就已返回占位符）。
+   **提到 0.6 反而更差**：把对的也弃了（严格 3→1，未答对 19→21）。
+2. **`margin` 才分得开**：`margin ≥ 0.2` → 自信答错 **16→3（-81.3%）**，
+   严格正确 **3→3（零损失）**。因为 `margin==0`（并列）是答错高发区：
+   26 张里 **20 张 margin==0，其中 16 张（80%）是自信答错**。
+   → **"赢得很勉强"比"分数低"更值得警惕。**
+3. **弃权不会降低 `★认错`（fail）**：`fail = 自信答错 + 空答 + 读取异常`，
+   弃权只是把「危险错误」**搬进**「空答」桶，总数恒为 19。
+   → 要看清这一点，必须**单列「危险率（自信答错率）」并把它当第一指标**。
+
+**⚠️ 因此门槛默认 `0.0`（关闭），并在 `verify_abstain.py` 里写死断言锁定默认值** ——
+n=26、严格正确仅 3 张时**任何阈值都是过拟合**（`eval.py` 自己也印这句警告）。
+**翻转默认值的前置条件：先把 external 扩到 ≥30 张。**
+
+### 四、`benchmarks/eval.py`
+
+- 优先读 `info.abstained`（显式标记），**保留占位符字符串兜底** —— 老版本 reader
+  无该字段时 `getattr(..., False)` 取 False，两条路径结果一致（有断言锁定）。
+- 新增 `--abstain-conf` / `--abstain-margin`（不改源码扫阈值）、`--sweep`（出对照表）。
+- `--sweep` 实现：先按"不弃权"**读一遍**缓存 `(conf, margin)`，再纯模拟各阈值 ——
+  弃权规则是 `f(conf, margin)` 的纯函数，没必要为每个阈值重读 26 张图（每遍 2~4 分钟）。
+  **模拟保真度已验证**：`--abstain-margin 0.2` **实跑**结果与模拟**逐桶一致**。
+- 修一处契约瑕疵：OOV 样本 `truth==""` 时 `truth and truth in inferred` 求值成 `""`
+  → JSON 里出现 `"loose": ""`（假值但是字符串）。桶判定靠真值性没错，但契约上应为
+  `false` → 六个桶统一套 `bool()`（**度量教训 #5**：置信度不该当门槛，裕度才该）。
+
+### 五、★ 新增 `examples/verify_abstain.py`（53 断言 · 合成 DXF，不依赖外部图纸）
+
+防三类回归：
+1. **行为回归**：门槛默认 0.0 时识别结果必须与改动前**逐字一致**（否则 v1.17.8 基线作废）；
+2. **泄漏回归**：用**行为**证明文件名没被当信号 —— 造一张名为 `平面图.dxf`
+   但图内**零平面图信号**的图，必须**弃权**；若泄漏则会答"平面图"。
+   （不靠读源码断言，读源码的断言在重构时会变假阳性。）
+   背景：评测集 26 张里 **6 张文件名直接含真值关键词**，
+   一传 filename 严格正确就会从 3/26 虚增到 9/26 —— **那是把答案喂给模型**。
+3. **契约回归**：三元组/默认值/`to_dict`/`to_markdown`、
+   以及不变式「`abstained` ⇔ 占位符」（eval 两条判定路径等价的前提）。
+
+### 六、最终总验证（v1.17.9）
+**21 套件全绿 · 575 项可计数断言 · 0 失败**。
+新增 `verify_abstain.py` **53/53**（已注册进 `verify_all.py` 的 `SUITE_NAMES`）。
+**基线幂等性实证**：改动后 `eval.py --external-only` 与 v1.17.8 基线
+**逐桶逐字完全相同**（3 / 1 / 3 / 3 / 16 / 19）。
+
 

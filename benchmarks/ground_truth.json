@@ -1,12 +1,13 @@
 {
-  "version": "1.4",
-  "description": "识图评测真值表（v1.17.8 · B 路线）。v1.3 新增别墅图纸集 A 方案样本（来源：百度网盘 30070062\\别墅建筑，aspose CONVERT + dxf_prepare）；v1.4 补上别墅 18 张入库 + OOV 4 张，external 8 → 26 张。⚠️ 用 eval.py --external-only 看真实识别能力；全量数字会被 self_generated 稀释。",
+  "version": "1.5",
+  "description": "识图评测真值表（v1.17.9 · B 路线）。v1.3 新增别墅图纸集 A 方案样本（来源：百度网盘 30070062\\别墅建筑，aspose CONVERT + dxf_prepare）；v1.4 补上别墅 18 张入库 + OOV 4 张，external 8 → 26 张；v1.5 配合识图【弃权能力】落地，新增 abstain_note 记录阈值实证（结论：置信度无判别力、决策裕度 margin 才有）。⚠️ 用 eval.py --external-only 看真实识别能力；全量数字会被 self_generated 稀释。",
   "vocab_note": "系统识图类型域共 34 类（见 drawing_reader.TYPE_BY_KEYWORDS / TYPE_BY_LAYERS）。真值不在域内时标 oov=true：此时【正确做法是拒识】(inferred 为空)，拒识不计入认错。⚠️ oov 样本的 type 写 null —— 消费者必须用 `x.get('type') or ''`，`dict.get(k,'')` 不兜 null（会让 truth[:10] 崩掉整批评测，v1.17.8 已修 eval.py）。",
   "metric_note": "认错 = 有输出(inferred 非空) 且 不严格正确 且 不宽松正确。⚠️ 必须报『认错率』，不能只报『有没有识别』——旧口径『识别成功 100%』是假指标（只统计有没有输出，不统计对不对）。",
   "preprocess_note": "⚠️ raw/ 内样本的预处理状态【不统一】：基线 13 张（桃花源 / 剖面图_1-1）仍带 OBJECTS 段（未过 dxf_prepare），别墅 18 张是 aspose CONVERT → dxf_prepare 的产物。原因是 drawing_reader.read() 不调用 prepare（只做 strict→recover 兜底），raw/ 里放什么就读什么。这不影响识别口径（OBJECTS 段不参与识别输入特征），但若要严格可比，应让 eval 对所有样本统一过同一个 prepare —— 属待办（会改变历史基线，故未擅动）。",
   "source_dir": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf",
   "source_note": "基线 7 张 source 指向 dwg_probe/out_dxf（⚠️ 该目录是 source 回退路径，不可删）；13 张桃花源源为 OneDrive 刘斌归档；别墅 18 张源为 F:\\BaiduNetdiskDownload\\...\\30070062\\别墅建筑。全部已拷入 raw/，可脱离外部路径。",
-  "baseline_note": "v1.17.8 真实基线（eval.py --external-only，n=26）：严格正确 3 (11.5%) / 宽松 1 / 正确拒识 3 / ★认错 19 (73.1%) = 自信答错 16 (61.5%) + 空答 3 (11.5%)。对比 v1.17.6 的 n=8 → 认错 7 (87.5%)：★ 分母不同，87.5%→73.1% 不是能力提升。最大错误簇：5 张被识成『火灾报警图』（占 16 处自信答错的 31%），疑为模板图例污染。",
+  "baseline_note": "v1.17.8 真实基线（eval.py --external-only，n=26）：严格正确 3 (11.5%) / 宽松 1 / 正确拒识 3 / ★认错 19 (73.1%) = 自信答错 16 (61.5%) + 空答 3 (11.5%)。对比 v1.17.6 的 n=8 → 认错 7 (87.5%)：★ 分母不同，87.5%→73.1% 不是能力提升。最大错误簇：5 张被识成『火灾报警图』（占 16 处自信答错的 31%），疑为模板图例污染。v1.17.9 复跑该基线【逐桶逐字未变】，确认弃权改动默认 0.0 时行为完全向后兼容。",
+  "abstain_note": "v1.17.9 弃权能力与阈值实证（eval.py --external-only --sweep，n=26）。① 门槛默认 ABSTAIN_CONF_THRESHOLD=ABSTAIN_MARGIN_THRESHOLD=0.0（关闭），以保证历史基线可复现。② 【置信度没有判别力】：type_confidence 只有 {0.0, 0.5, 0.7} 三档，3 张严格正确的 conf(0.5/0.5/0.7) 与 16 张自信答错的 conf(0.0×3/0.5×10/0.7×3) 完全重叠；实测 conf 门槛 0.3/0.4/0.5 与关闭【逐桶完全相同】（conf<0.3 ⟺ conf==0，本就已返回占位符），提到 0.6 反而使严格正确 3→1、未答对 19→21。③ 【决策裕度 margin=top1-top2 才有判别力】：margin≥0.2 → 严格正确 3→3（零损失）、自信答错 16→3（-81.3%）、拒识 3→4、空答 3→16、★认错仍 19 (73.1%)——因为弃权只是把『危险错误』转成『空答』，fail 总数不降；margin≥0.3 → 自信答错 0 但严格正确 3→2。④ 结论：26 张里 20 张 margin==0（并列），其中 16 张（80%）是自信答错——『赢得很勉强』比『分数低』更值得警惕。⚠️ n=26、严格正确仅 3 张，上述阈值全是过拟合，故默认关闭；翻转默认值前必须先把 external 扩到 ≥30 张。",
   "samples": [
     {
       "file": "01 材料表.dxf",

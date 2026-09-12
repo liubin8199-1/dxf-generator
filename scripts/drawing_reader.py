@@ -14,6 +14,10 @@ drawing_reader.py — DXF 识图引擎（dxf-generator v1.14.0 新增）
     6. 尺寸标注提取  全部 DIMENSION 的测量值
     7. 几何量算      各图层线长、闭合面积、块数量（供清单统计使用）
     8. 图纸类型推断  基于图层特征 + 文字关键词，推断图别
+       · 同时给出 **决策裕度 margin = top1 - top2**（判断"赢得多干净"）
+       · 支持**弃权**：门槛不达标时 `abstained=True` 且图别回退为占位符
+         （门槛 `ABSTAIN_CONF_THRESHOLD` / `ABSTAIN_MARGIN_THRESHOLD`，
+          默认 0.0 = 不启用，保持历史基线可复现；依据见 benchmarks/eval.py）
     9. 完整性诊断    图框 / 标题栏 / 图层合规 / 中文样式 四项体检
 
 输出接口
@@ -48,6 +52,12 @@ __all__ = [
     "describe",
     "LAYER_DISCIPLINES",
     "infer_drawing_type",
+    "infer_drawing_type_ex",
+    "score_drawing_types",
+    "set_abstain_thresholds",
+    "PLACEHOLDER_TYPE",
+    "ABSTAIN_CONF_THRESHOLD",
+    "ABSTAIN_MARGIN_THRESHOLD",
 ]
 
 
@@ -238,6 +248,15 @@ class DrawingInfo:
     type_confidence: float = 0.0
     type_evidence: List[str] = field(default_factory=list)
 
+    # --- 弃权（abstain）三件套 -------------------------------------------
+    # `type_margin` = top1 - top2（决策裕度）：**总是**计算，属信息性字段，
+    #   即便不启用弃权也能让人看出"这个判断赢得多干净"（margin=0 即并列）。
+    # `abstained`   = 系统是否拒绝作答（True 时 drawing_type 为占位符）。
+    # `abstain_reason` = 为什么弃权（人读，便于复盘；空串表示没弃权）。
+    type_margin: float = 0.0
+    abstained: bool = False
+    abstain_reason: str = ""
+
     completeness: Dict[str, Any] = field(default_factory=dict)
     warnings: List[str] = field(default_factory=list)
 
@@ -266,6 +285,9 @@ class DrawingInfo:
             "recognition": {
                 "drawing_type": self.drawing_type,
                 "confidence": self.type_confidence,
+                "margin": self.type_margin,
+                "abstained": self.abstained,
+                "abstain_reason": self.abstain_reason,
                 "evidence": self.type_evidence,
             },
             "completeness": self.completeness,
@@ -507,13 +529,37 @@ class DrawingReader:
         # 图层声明 ≠ 图层有内容——国标图纸常一次性声明 48+ 图层，大量为空
         active_layers = [name for name, li in info.layers.items()
                          if li.entity_count > 0]
-        dtype, conf, evidence = infer_drawing_type(
+        # ⚠️ 刻意不传 filename：评测集里 6/26 张的文件名直接含真值关键词，
+        #    传进去就是答案泄漏（严格正确会从 3/26 虚增到 9/26）。
+        dtype, conf, margin, evidence = infer_drawing_type_ex(
             layer_names=active_layers,
             texts=[t.content for t in info.texts],
         )
-        info.drawing_type = dtype
         info.type_confidence = conf
+        info.type_margin = margin
         info.type_evidence = evidence
+
+        # --- 弃权判定 -----------------------------------------------------
+        # 门槛为 0.0 时不改变既有行为（历史基线可复现）。
+        # 凡命中门槛或"根本没命中任何特征"，一律：占位符 + abstained=True。
+        reason = ""
+        if dtype == PLACEHOLDER_TYPE:
+            reason = "无任何图层特征或文字关键词命中"
+        elif ABSTAIN_CONF_THRESHOLD > 0 and conf < ABSTAIN_CONF_THRESHOLD:
+            reason = ("置信度 %.2f < 门槛 %.2f" % (conf, ABSTAIN_CONF_THRESHOLD))
+        elif ABSTAIN_MARGIN_THRESHOLD > 0 and margin < ABSTAIN_MARGIN_THRESHOLD:
+            reason = ("决策裕度 %.2f < 门槛 %.2f（top1 与 top2 未拉开，属并列）"
+                      % (margin, ABSTAIN_MARGIN_THRESHOLD))
+
+        if reason:
+            info.drawing_type = PLACEHOLDER_TYPE
+            info.abstained = True
+            info.abstain_reason = reason
+            info.type_evidence = evidence + ["⛔ 弃权：%s" % reason]
+        else:
+            info.drawing_type = dtype
+            info.abstained = False
+            info.abstain_reason = ""
 
     # ---------- 9. 完整性诊断 ----------
     def _diagnose(self) -> None:
@@ -584,19 +630,67 @@ class DrawingReader:
 # ============================================================
 # 图纸类型推断（模块级，便于单独调用/测试）
 # ============================================================
-def infer_drawing_type(layer_names: List[str],
-                       texts: List[str],
-                       filename: str = "") -> Tuple[str, float, List[str]]:
-    """推断图纸类型。返回 (类型, 置信度 0~1, 证据列表)。
+
+# 低置信时对外统一使用的**占位符字符串**（保持历史约定，不是 None）。
+# ⚠️ 为什么不用 None：下游 `pipeline.py` / `construction_notes_v2.py` /
+#    各 demo 全部按「字符串」处理（`info.drawing_type or "未识别"`、`%s` 格式化）,
+#    `to_dict()` / `to_markdown()` 也会把它直接吐出来。改成 None 会让这些
+#    调用点从「拿不到答案」退化成「崩掉」，而收益（区分"未识别"与"没答案"）
+#    已由 `abstained` 布尔字段提供 —— 占位符保留原样，弃权语义另立字段。
+PLACEHOLDER_TYPE: str = "未识别"
+
+# --- 弃权（abstain）门槛 ------------------------------------------------
+# 语义：`abstained=True` 表示"系统拒绝作答"，此时 `drawing_type` 为占位符。
+# 两个门槛默认 **0.0 = 不启用**，从而**不改变既有识别行为与历史基线**（可复现）。
+#
+# ★ 为什么默认不启用（实测结论，2026-09-12，external n=26）：
+#   · `type_confidence`（top1 绝对分）在真实图纸上只有 {0.0, 0.5, 0.7} 三档，
+#     且 3 张严格正确的 conf ∈ {0.5, 0.5, 0.7} 与 19 张答错的 conf
+#     ∈ {0.0×3, 0.5×12, 0.7×4} **完全重叠** → 绝对分阈值几乎没有判别力。
+#     实测：把 conf 阈值从 0.0 提到 0.3 / 0.4 / 0.5，五个桶**逐桶完全不变**
+#     （因为 conf<0.3 ⟺ conf==0.0 ⟺ 本就无任何命中 ⟺ 已经是占位符）。
+#     提到 0.6 反而变差：严格正确 3→1，未答对 19→21。
+#   · `type_margin`（top1 - top2，决策裕度）才是唯一有判别力的信号：
+#     margin ≥ 0.2 → 危险错误（自信答错）16→3（-81%），严格正确 3→3（零损失）；
+#     margin ≥ 0.5 → 只作答 2 张且 2/2 全对（全批唯二"只有一个类别得分"的图）。
+#
+# ⚠️ 但 n=26、严格正确仅 3 张 —— **任何阈值在此样本量下都是过拟合**
+#    （eval.py 自己也印这句警告）。因此：机制先落地、默认关闭，
+#    待 external 扩到 ≥30 张后再据数据翻转默认值。
+ABSTAIN_CONF_THRESHOLD: float = 0.0
+ABSTAIN_MARGIN_THRESHOLD: float = 0.0
+
+
+def set_abstain_thresholds(conf: Optional[float] = None,
+                           margin: Optional[float] = None) -> Tuple[float, float]:
+    """运行时调整弃权门槛（供评测脚本扫阈值用，不必改源码）。
+
+    传 None 表示"该项不动"。返回调整后的 (conf 门槛, margin 门槛)。
+    ⚠️ 这是**进程内全局**设置，只影响当前进程后续的 `read()` 调用。
+    """
+    global ABSTAIN_CONF_THRESHOLD, ABSTAIN_MARGIN_THRESHOLD
+    if conf is not None:
+        ABSTAIN_CONF_THRESHOLD = float(conf)
+    if margin is not None:
+        ABSTAIN_MARGIN_THRESHOLD = float(margin)
+    return ABSTAIN_CONF_THRESHOLD, ABSTAIN_MARGIN_THRESHOLD
+
+
+def score_drawing_types(layer_names: List[str],
+                        texts: List[str],
+                        filename: str = "") -> Dict[str, float]:
+    """算出**全部候选图别**的得分（`infer_drawing_type` 只看 top1，看不到 margin）。
 
     三信号源加权，按可靠性排序：
       1. 文件名关键词   权重 0.8  —— 工程图文件名通常就是图名，最可靠
       2. 图内文字关键词 权重 0.7（长词≥4字）/ 0.5（短词）—— 标题栏图名
       3. 图层特征       权重 0.4 + 每多命中一层 +0.1
-    """
-    evidence: List[str] = []
-    score: Dict[str, float] = defaultdict(float)
 
+    ⚠️ `DrawingReader._infer_type()` **刻意不传 filename**：
+       评测集真值文件名里有 6/26 直接含真值关键词，传进去就是泄漏
+       （实测严格正确会从 3/26 虚增到 9/26）。
+    """
+    score: Dict[str, float] = defaultdict(float)
     blob = " ".join(texts)
     fname = filename or ""
 
@@ -605,15 +699,12 @@ def infer_drawing_type(layer_names: List[str],
         hit = [k for k in kws if k in fname]
         if hit:
             score[dtype] += 0.8
-            evidence.append("%s ← 文件名「%s」" % (dtype, "、".join(hit)))
 
     # 2) 图内文字（长关键词更可靠）
     for dtype, kws in TYPE_BY_KEYWORDS:
         hit = [k for k in kws if k in blob]
         if hit:
-            w = 0.7 if max(len(k) for k in hit) >= 4 else 0.5
-            score[dtype] += w
-            evidence.append("%s ← 图内文字「%s」" % (dtype, "、".join(hit[:3])))
+            score[dtype] += 0.7 if max(len(k) for k in hit) >= 4 else 0.5
 
     # 3) 图层特征
     lset = set(layer_names)
@@ -621,14 +712,67 @@ def infer_drawing_type(layer_names: List[str],
         hit = [l for l in layers if l in lset]
         if hit:
             score[dtype] += 0.4 + 0.1 * (len(hit) - 1)
+
+    return dict(score)
+
+
+def infer_drawing_type_ex(layer_names: List[str],
+                          texts: List[str],
+                          filename: str = "") -> Tuple[str, float, float, List[str]]:
+    """推断图纸类型，额外返回 **决策裕度 margin = top1 - top2**。
+
+    返回 `(类型, 置信度 0~1, 裕度 >=0, 证据列表)`。
+
+    为什么需要 margin：置信度（top1）只说明"最高分多高"，不说明"赢得多干净"。
+    实测真实图纸上 top1 高度量化（只有 0.5/0.7 两档），且对错两组完全重叠；
+    而 `margin==0`（并列）恰恰是答错的高发区（26 张里 20 张 margin=0，
+    含 16 张自信答错）。margin 是"该不该弃权"的主要依据。
+    无任何命中时返回 `(PLACEHOLDER_TYPE, 0.0, 0.0, [...])`。
+    """
+    evidence: List[str] = []
+    fname = filename or ""
+    blob = " ".join(texts)
+
+    # 证据（保留原有可读格式，便于人工核对"凭什么这么判"）
+    for dtype, kws in TYPE_BY_KEYWORDS:
+        if fname:
+            hit = [k for k in kws if k in fname]
+            if hit:
+                evidence.append("%s ← 文件名「%s」" % (dtype, "、".join(hit)))
+        hit = [k for k in kws if k in blob]
+        if hit:
+            evidence.append("%s ← 图内文字「%s」" % (dtype, "、".join(hit[:3])))
+    lset = set(layer_names)
+    for dtype, layers in TYPE_BY_LAYERS:
+        hit = [l for l in layers if l in lset]
+        if hit:
             evidence.append("%s ← 图层 %s" % (dtype, "、".join(hit[:4])))
 
+    score = score_drawing_types(layer_names, texts, filename)
     if not score:
-        return "未识别", 0.0, ["无匹配的图层特征或文字关键词"]
+        return PLACEHOLDER_TYPE, 0.0, 0.0, ["无匹配的图层特征或文字关键词"]
 
-    best = max(score.items(), key=lambda kv: kv[1])
+    ranked = sorted(score.items(), key=lambda kv: -kv[1])
+    best = ranked[0]
+    top2 = ranked[1][1] if len(ranked) > 1 else 0.0
     conf = min(1.0, best[1])
-    return best[0], round(conf, 2), evidence
+    margin = max(0.0, best[1] - top2)
+    if len(ranked) > 1 and margin == 0.0:
+        evidence.append("⚠ 并列（%d 个候选同为 %.2f 分）→ 决策无裕度"
+                        % (sum(1 for _, v in ranked if v == best[1]), best[1]))
+    return best[0], round(conf, 2), round(margin, 2), evidence
+
+
+def infer_drawing_type(layer_names: List[str],
+                       texts: List[str],
+                       filename: str = "") -> Tuple[str, float, List[str]]:
+    """推断图纸类型。返回 (类型, 置信度 0~1, 证据列表)。
+
+    兼容旧接口的三元组封装；需要 margin 请用 `infer_drawing_type_ex()`。
+    """
+    dtype, conf, _margin, evidence = infer_drawing_type_ex(
+        layer_names, texts, filename)
+    return dtype, conf, evidence
 
 
 # ============================================================
@@ -646,8 +790,10 @@ def _render_markdown(info: DrawingInfo) -> str:
     L.append("| 布局 | %s |" % ("、".join(info.layouts) or "-"))
     L.append("| 图层数 | %d |" % info.layer_count)
     L.append("| 实体总数 | %d |" % info.entity_total)
-    L.append("| **识别图别** | **%s**（置信度 %.2f） |" %
-             (info.drawing_type, info.type_confidence))
+    L.append("| **识别图别** | **%s**（置信度 %.2f，裕度 %.2f） |" %
+             (info.drawing_type, info.type_confidence, info.type_margin))
+    if info.abstained:
+        L.append("| 弃权 | ⛔ 是 —— %s |" % (info.abstain_reason or "未说明"))
     L.append("")
 
     if info.type_evidence:

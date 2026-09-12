@@ -56,6 +56,7 @@ SUITE_NAMES = {
     'verify_advanced_review.py':   '高级模板+审图',
     'verify_notes_fullset.py':     '说明全套',
     'verify_prepare.py':           'DXF 预处理',
+    'verify_abstain.py':           '识图弃权能力',
 }
 
 # 1) 显式计数

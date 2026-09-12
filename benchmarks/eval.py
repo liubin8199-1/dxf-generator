@@ -36,6 +36,21 @@
   ⚠️ 教训推广：**`dict.get(k, default)` 的 default 只兜"键缺失"，不兜"值为 null"**；
      外部 JSON 一律用 `x.get(k) or default`。
 
+⚠️ 度量教训 #5（v1.17.9 修）：**「置信度」不该拿来当弃权门槛，「决策裕度」才该。**
+  external n=26 实测 `type_confidence`（top1 绝对分）只有 {0.0, 0.5, 0.7} 三档，
+  且 3 张严格正确的 conf（0.5/0.5/0.7）与 16 张自信答错的 conf
+  （0.0×3 / 0.5×10 / 0.7×3）**完全重叠** → 绝对分没有判别力。
+  实证（`--sweep`）：conf 门槛 0.3 / 0.4 / 0.5 与"不启用"**逐桶完全相同**
+  （因为 conf<0.3 ⟺ conf==0，本就已返回占位符）；提到 0.6 反而使
+  严格正确 3→1、未答对 19→21（把对的也弃权了）。
+  而 `margin = top1 - top2`（赢得多干净）才分得开：
+  margin ≥ 0.1~0.2 → 自信答错 16→3（**-81%**）且严格正确 3→3（**零损失**）；
+  margin ≥ 0.3 → 自信答错 0，但严格正确 3→2（把 margin=0.2 的那张对图也弃了）。
+  ⚠️ 推论：`margin==0`（并列）是答错高发区 —— 26 张里 20 张 margin=0，
+     其中 16 张（80%）是自信答错。**"赢得很勉强"比"分数低"更值得警惕。**
+  ⚠️ 但 n=26、严格正确仅 3 张 → 上述阈值仍是过拟合，故 reader 默认关闭，
+     待 external ≥30 张再定值。
+
 用法：
     python eval.py                 # 跑全部（并按来源分组报数）
     python eval.py --json          # 额外输出 JSON
@@ -43,6 +58,21 @@
     python eval.py --limit 3       # 只跑前 N 张（快速冒烟）
     python eval.py --base <dir>    # 指定 raw 目录（覆盖默认 benchmarks/raw）
     python eval.py --external-only # 只评 external（真实图纸），排除自产样本
+    python eval.py --abstain-margin 0.2   # 扫阈值：裕度 <0.2 就弃权（不改源码）
+    python eval.py --abstain-conf 0.6     # 扫阈值：置信度 <0.6 就弃权
+    python eval.py --sweep         # 自动扫一遍常用阈值组合，出对照表
+
+弃权（abstain）门槛说明（v1.17.9）：
+    `drawing_reader` 现在会显式给 `info.abstained`（布尔）+ `info.abstain_reason`。
+    本脚本优先读这个字段（比"猜占位符字符串"更可靠），同时保留占位符兜底 ——
+    老版本 reader 没有该字段时 `getattr(info, "abstained", False)` 取 False，
+    仍由 `PLACEHOLDER` 字符串判定，两条路径结果一致。
+
+⚠️ 阈值默认 0.0（不启用）；`--sweep` 只是为了**看效果**，不是调参。
+   实测 external n=26：conf 阈值 0.3/0.4/0.5 与不启用**逐桶完全相同**
+   （conf<0.3 ⟺ conf==0），提到 0.6 反而使严格正确 3→1；
+   margin 阈值 0.2 才有效（自信答错 16→3，严格正确 3→3）。
+   但 n=26、严格正确仅 3 张 —— **任何阈值都是过拟合**，先扩样本再定值。
 
 样本路径解析：优先 `benchmarks/raw/<file>`，不存在则回落 `ground_truth.json` 的 `source`。
 （raw/ 不入库；用 `import_samples.py` 把外部 DXF 拷进来即可脱离外部路径。）
@@ -88,6 +118,112 @@ def resolve(sample, base):
     return None
 
 
+def _run_sweep(args, dr, read):
+    """扫常用弃权阈值组合，出「阈值 → 五个桶」对照表。
+
+    做法：先把门槛归零**读一遍**，把每张图的 (conf, margin, 原始判定) 缓存下来；
+    再纯模拟各阈值下的弃权决策 —— 因为 reader 的弃权规则是
+    `f(conf, margin)` 的纯函数，没必要为每个阈值重读 26 张图（每遍要 1~3 分钟）。
+
+    ⚠️ 本功能是**看效果**，不是调参。n=26、严格正确仅 3 张时任何阈值都是过拟合。
+    """
+    dr.set_abstain_thresholds(conf=0.0, margin=0.0)
+
+    gt = load_gt()
+    samples = gt.get("samples", [])
+    if args.external_only:
+        samples = [s for s in samples
+                   if s.get("provenance", "unknown") == "external"]
+    if args.only:
+        samples = [s for s in samples
+                   if any(k in s.get("file", "") for k in args.only)]
+    if args.limit:
+        samples = samples[:args.limit]
+    if not samples:
+        print("⚠️ 无有效样本")
+        return 0
+
+    print("=" * 92)
+    print("弃权阈值扫描（external-only=%s，样本 %d 张）" % (args.external_only, len(samples)))
+    print("=" * 92)
+    print("先按「不弃权」读一遍，缓存 (conf, margin)；随后纯模拟各阈值。")
+    print("-" * 92)
+
+    cache = []
+    for s in samples:
+        path = resolve(s, args.base)
+        truth = (s.get("type") or "").strip()
+        rec = {"file": s.get("file"), "truth": truth,
+               "family": s.get("family", []) or [], "oov": bool(s.get("oov")),
+               "conf": 0.0, "margin": 0.0, "dtype": None}
+        if path:
+            try:
+                info = read(path)
+                rec["conf"] = float(getattr(info, "type_confidence", 0.0) or 0.0)
+                rec["margin"] = float(getattr(info, "type_margin", 0.0) or 0.0)
+                rec["dtype"] = (info.drawing_type or "").strip() or None
+            except Exception as e:
+                rec["err"] = str(e)
+        cache.append(rec)
+    print("缓存完成（%d 张）。" % len(cache))
+
+    def sim(conf_th, marg_th):
+        st = lo = rf = ab = wr = er = 0
+        for r in cache:
+            if r.get("err"):
+                er += 1
+                continue
+            if r["dtype"] is None or r["dtype"] in PLACEHOLDER:
+                hit_abstain = True
+            elif conf_th > 0 and r["conf"] < conf_th:
+                hit_abstain = True
+            elif marg_th > 0 and r["margin"] < marg_th:
+                hit_abstain = True
+            else:
+                hit_abstain = False
+            if hit_abstain:
+                if r["oov"]:
+                    rf += 1
+                else:
+                    ab += 1
+                continue
+            inf = r["dtype"]
+            if inf == r["truth"] and r["truth"]:
+                st += 1
+            elif inf in r["family"] or (r["truth"] and r["truth"] in inf):
+                lo += 1
+            else:
+                wr += 1
+        return st, lo, rf, ab, wr, er
+
+    n = len([r for r in cache if not r.get("err")])
+    combos = [(0.0, 0.0), (0.3, 0.0), (0.5, 0.0), (0.6, 0.0), (0.0, 0.1),
+              (0.0, 0.2), (0.0, 0.3), (0.5, 0.2), (0.7, 0.2)]
+    print()
+    print("%-16s %5s %5s %5s %5s %6s %10s %9s" % (
+        "阈值(conf,mar)", "严格", "宽松", "拒识", "空答", "答错", "认错(fail)", "危险率"))
+    print("-" * 92)
+    base_fail = None
+    for c, m in combos:
+        st, lo, rf, ab, wr, er = sim(c, m)
+        fail = wr + ab + er
+        if base_fail is None:
+            base_fail = fail
+        tot = st + lo + rf + ab + wr + er
+        tag = "  ← 现状" if (c, m) == (0.0, 0.0) else ""
+        print("(%.1f, %.1f)%10s %5d %5d %5d %5d %6d %5d/%-4d %8.1f%%%s" % (
+            c, m, "", st, lo, rf, ab, wr, fail, n, wr / n * 100 if n else 0, tag))
+        if tot != n:
+            print("   ❌ 桶不自洽: %d != %d" % (tot, n))
+    print("-" * 92)
+    print("说明：『危险率』= 自信答错 / n，是**最该压低**的指标（给错答案且给了把握）。")
+    print("      『认错(fail)』= 答错 + 空答 + 读取异常，与历史口径可比 ——")
+    print("      注意弃权会把『危险错误』转成『空答』，fail 总数不一定下降。")
+    print("⚠️ 样本 <30 张时任何阈值都是过拟合；本表只用于判断**方向**，不用于定值。")
+    print("=" * 92)
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="识图评测")
     ap.add_argument("--json", action="store_true")
@@ -96,7 +232,30 @@ def main(argv=None):
     ap.add_argument("--base", default=os.path.join(HERE, "raw"))
     ap.add_argument("--external-only", action="store_true",
                     help="只评 external（真实图纸），排除 self_generated 自产样本")
+    ap.add_argument("--abstain-margin", type=float, default=None,
+                    help="弃权门槛：决策裕度(top1-top2) < 此值即弃权（不改源码）")
+    ap.add_argument("--abstain-conf", type=float, default=None,
+                    help="弃权门槛：置信度(top1) < 此值即弃权（不改源码）")
+    ap.add_argument("--sweep", action="store_true",
+                    help="自动扫常用阈值组合并出对照表（只看效果，不是调参）")
     args = ap.parse_args(argv)
+
+    try:
+        from drawing_reader import read
+        import drawing_reader as _dr
+    except Exception as e:
+        print("❌ 无法导入 drawing_reader: %s" % e)
+        return 2
+
+    # 阈值覆盖：必须在任何 read() 之前设置（_infer_type 在调用时读模块全局）
+    _th_note = ""
+    if args.abstain_margin is not None or args.abstain_conf is not None:
+        _c, _m = _dr.set_abstain_thresholds(conf=args.abstain_conf,
+                                            margin=args.abstain_margin)
+        _th_note = "conf<%.2f 或 margin<%.2f 即弃权" % (_c, _m)
+
+    if args.sweep:
+        return _run_sweep(args, _dr, read)
 
     print("=" * 78)
     print("识图评测 · 认错率是核心指标（不是『有没有识别』）")
@@ -116,14 +275,10 @@ def main(argv=None):
         print("⚠️ ground_truth.json 无有效样本（或过滤后为空）")
         return 0
 
-    try:
-        from drawing_reader import read
-    except Exception as e:
-        print("❌ 无法导入 drawing_reader: %s" % e)
-        return 2
-
     print("raw 目录: %s" % args.base)
     print("样本数  : %d" % len(samples))
+    if _th_note:
+        print("弃权门槛: %s" % _th_note)
     print("-" * 78)
     print("%-30s %-12s %-14s %-6s %s" % ("文件", "真值", "识别", "判定", "耗时"))
     print("-" * 78)
@@ -151,23 +306,32 @@ def main(argv=None):
 
         t0 = time.time()
         err = None
+        abstain_reason = ""
         try:
             info = read(path)
             inferred = (info.drawing_type or "").strip() or None
+            # ★ 优先读 reader 显式给出的弃权标记；老版本无该字段则取 False，
+            #   退回下面的占位符字符串判定（两条路径结果一致）。
+            abstained_flag = bool(getattr(info, "abstained", False))
+            abstain_reason = getattr(info, "abstain_reason", "") or ""
         except Exception as e:
-            inferred, err = None, str(e)
+            inferred, err, abstained_flag = None, str(e), False
         sec = time.time() - t0
 
-        answered = is_answered(inferred)
+        # 弃权 = 显式标记 或 返回的是占位符（两者任一成立即视为未作答）
+        answered = (not abstained_flag) and is_answered(inferred)
         errored = bool(err)
-        strict = answered and inferred == truth
+        strict = bool(answered and inferred == truth)
         # loose 必须【排除严格】——否则 5 张严格正确会被同时计入宽松，
         # 各桶相加 > n（5+6+0+1+0+14=26 ≠ 21），无法构成对样本的划分。
-        loose = answered and not strict and (
-            inferred in family or (truth and truth in inferred))
-        refused = (not answered) and oov and not errored
-        abstain = (not answered) and (not oov) and not errored
-        wrong = answered and not strict and not loose
+        # ⚠️ 外面套 bool()：OOV 样本 truth==""，`truth and truth in inferred`
+        #    会求值成 `""`（假值但是字符串），JSON 里就出现 `"loose": ""`
+        #    这种"半布尔"值 —— 桶判定靠真值性没错，但契约上应当是 false（v1.17.9 修）。
+        loose = bool(answered and not strict and (
+            inferred in family or (truth and truth in inferred)))
+        refused = bool((not answered) and oov and not errored)
+        abstain = bool((not answered) and (not oov) and not errored)
+        wrong = bool(answered and not strict and not loose)
 
         if strict:
             mark = "✅"
@@ -184,13 +348,14 @@ def main(argv=None):
         rows.append({"file": s.get("file"), "truth": truth, "inferred": inferred,
                      "answered": answered, "strict": strict, "loose": loose,
                      "refused": refused, "abstain": abstain, "wrong": wrong,
-                     "errored": errored, "missing": False, "sec": sec, "error": err})
+                     "errored": errored, "missing": False, "sec": sec, "error": err,
+                     "abstained_flag": abstained_flag,
+                     "abstain_reason": abstain_reason})
 
         print("%-30s %-12s %-14s %-6s %.1fs%s" % (
             s.get("file", "")[:28], truth_label[:10],
             (inferred or "(拒识)")[:12], mark, sec,
             ("  ⚠" + err[:20]) if err else ""))
-
     valid = [r for r in rows if not r.get("missing")]
     n = len(valid)
     if n == 0:
