@@ -1,16 +1,10 @@
-# 生成产物（examples/ 下所有 out_* 目录，含 1.6G 的 out_dwg/）
-examples/out/
-examples/out_adv/
-examples/out_dwg/
-examples/out_e2e/
-examples/out_ext/
-examples/out_floors/
-examples/out_gb/
-examples/out_intf/
-examples/out_nl/
-examples/out_pro/
-examples/out_v113/
-examples/out_verify/
+# 生成产物（examples/ 下所有 out* 目录，含 1.6G 的 out_dwg/）
+# 用通配符一次性覆盖，含未来新增：out / out_adv / out_atlas / out_deliver_v117 /
+# out_nodes(_routing) / out_pingfa / out_pipeline / out_probe / out_steel_nodes /
+# out_v11x / out_verify(_v117) 等全部 out* 目录
+examples/out*/
+# 误建的嵌套目录（历史遗留）
+examples/examples/
 
 # 二进制/导出文件
 *.png
