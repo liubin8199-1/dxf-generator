@@ -42,6 +42,9 @@ from typing import Any, Dict, List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# 清单报价（图纸驱动）所需的单价表；延迟到此处导入，确保同目录优先
+from budget import UNIT_PRICES  # noqa: E402
+
 __all__ = [
     "PipelineConfig", "PipelineResult", "StepResult",
     "Pipeline", "pipeline", "pipeline_batch",
@@ -96,6 +99,12 @@ class PipelineConfig:
     do_sheet_render: bool = True         # [6b] 成品图幅预览（图纸空间，仅 do_render 时生效）
     do_export_3d: bool = True           # [7] 3D 体量挤出（纯 Python，快）
     do_viewer: bool = True              # [7b] 可旋转 HTML 预览
+
+    # ---- 清单报价（图纸驱动·数据贯通，默认关）----
+    # 给定建筑面积/层数才触发；不给定则跳过（保持历史默认行为）。
+    budget_area: float = 0.0            # 建筑面积 m²（驱动报价用）
+    budget_floors: int = 1              # 层数
+    do_budget_from_bom: bool = True     # budget_area>0 时跑图纸驱动报价
 
     # ---- 格式 ----
     bom_formats: List[str] = field(
@@ -163,6 +172,10 @@ class PipelineResult:
     review_grade: str = ""
     review_issues: int = 0
     review_file: str = ""
+
+    # 清单报价（图纸驱动·数据贯通）
+    budget_from_bom_file: str = ""
+    budget_from_bom_total: float = 0.0
 
     # 渲染 / 3D
     render_file: str = ""
@@ -379,6 +392,7 @@ class Pipeline:
             self._safe(2, lambda: self._step_reader(out_dir))
             self._safe(3, lambda: self._step_bom(out_dir))
             self._safe(4, lambda: self._step_notes(out_dir))
+            self._safe(4.5, lambda: self._step_budget(out_dir))
             self._safe(5, lambda: self._step_review(out_dir))
             self._safe(6, lambda: self._step_render(out_dir))
             self._safe(7, lambda: self._step_3d(out_dir))
@@ -598,6 +612,36 @@ class Pipeline:
             1 for ln in note_text.splitlines()
             if ln.strip() and ln.strip()[0].isdigit() and ". " in ln)
         return "%s（%d 条，%s）" % (key, self.result.notes_count, source)
+
+    # ============================================================
+    # [4.5] 清单报价（图纸驱动·数据贯通）
+    # ============================================================
+    def _step_budget(self, out_dir: str) -> str:
+        if not (self.config.do_budget_from_bom and self.config.budget_area > 0):
+            return "跳过(未给 budget_area)"
+        from bom import generate_bom
+        from bom_to_budget import estimate_from_bom, ConvertParams
+
+        area, floors = self.config.budget_area, int(self.config.budget_floors)
+        rep = generate_bom(self.result.dxf_file, None)   # 复用真实几何量
+        bp = ConvertParams(floors=floors)
+        budget, cov, acc, bg = estimate_from_bom(rep, area, floors, bp)
+
+        bf = os.path.join(out_dir, "budget_from_bom.md")
+        bg.to_markdown(bf, budget, "工程预算（图纸驱动·数据贯通）")
+        cf = os.path.join(out_dir, "budget_from_bom_coverage.md")
+        with open(cf, "w", encoding="utf-8") as f:
+            f.write("# 报价数据来源（图纸几何 vs 面积回退）\n\n")
+            for n, s in cov.items():
+                u, _ = UNIT_PRICES.get(n, ("", 0.0))
+                f.write("- %s：%s（%.2f %s）\n" % (n, s, acc[n], u))
+
+        self.result.budget_from_bom_file = bf
+        self.result.budget_from_bom_total = budget.total
+        return "总造价 %.0f 元（图纸驱动，%d/%d 项几何推导）" % (
+            budget.total,
+            sum(1 for v in cov.values() if v.startswith("几何")),
+            len(cov))
 
     # ============================================================
     # [5] 审查
