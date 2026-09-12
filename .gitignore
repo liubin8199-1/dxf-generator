@@ -42,3 +42,6 @@ Thumbs.db
 # 识图评测原始图纸（可能 100MB+，不入库；用 benchmarks/import_samples.py 本地导入）
 benchmarks/raw/*
 !benchmarks/raw/.gitkeep
+
+# 真值表自动备份（import_samples.py / check_provenance.py --apply 每次落盘都会生成）
+benchmarks/*.bak_*.json

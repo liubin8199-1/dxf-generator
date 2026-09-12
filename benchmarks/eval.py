@@ -27,6 +27,15 @@
   系统认自己的图当然更准（自产组 61.5% vs 外部组 87.5%）。
   → 因此：**必须按来源分组报数，且认错率只认 `external` 分组。**
 
+⚠️ 度量教训 #4（v1.17.8 修）：**OOV 样本的真值是 `null`，会让脚本崩掉**。
+  `ground_truth.json` 里 `oov: true` 的样本写的是 `"type": null`（系统 34 类词表里
+  根本没有这个图别，硬填会污染真值）。而 `dict.get("type", "")` 在"键存在但值为 null"
+  时返回的是 **`None`** 而不是默认值 `""` → 打印时 `truth[:10]` 直接
+  `TypeError: 'NoneType' object is not subscriptable`，**整批评测中断**。
+  → 统一 `(s.get("type") or "").strip()`，显示层用 `(OOV 无对应类)` 标签。
+  ⚠️ 教训推广：**`dict.get(k, default)` 的 default 只兜"键缺失"，不兜"值为 null"**；
+     外部 JSON 一律用 `x.get(k) or default`。
+
 用法：
     python eval.py                 # 跑全部（并按来源分组报数）
     python eval.py --json          # 额外输出 JSON
@@ -122,9 +131,14 @@ def main(argv=None):
     rows = []
     for s in samples:
         path = resolve(s, args.base)
-        truth = s.get("type", "")
+        # ⚠️ OOV 样本的真值是 `"type": null`（系统词表里根本没有这个图别），
+        #    `s.get("type","")` 在这种"键存在但值为 null"时返回的是 **None** 而不是 ""，
+        #    直接拿去切片/比较会 TypeError 崩掉整批评测（v1.17.8 修）。
+        truth = (s.get("type") or "").strip()
         family = s.get("family", []) or []
         oov = bool(s.get("oov", False))
+        # 显示用：OOV 没有对应类，用标签代替空串，避免打印时""看不出原因
+        truth_label = truth or ("(OOV 无对应类)" if oov else "(未填真值)")
 
         if not path:
             rows.append({"file": s.get("file"), "truth": truth, "inferred": None,
@@ -132,7 +146,7 @@ def main(argv=None):
                          "abstain": False, "wrong": False, "errored": False,
                          "missing": True, "sec": 0})
             print("%-30s %-12s %-14s %-6s %s" % (
-                s.get("file", "")[:28], truth[:10], "(缺文件)", "⏭", "—"))
+                s.get("file", "")[:28], truth_label[:10], "(缺文件)", "⏭", "—"))
             continue
 
         t0 = time.time()
@@ -173,7 +187,7 @@ def main(argv=None):
                      "errored": errored, "missing": False, "sec": sec, "error": err})
 
         print("%-30s %-12s %-14s %-6s %.1fs%s" % (
-            s.get("file", "")[:28], truth[:10],
+            s.get("file", "")[:28], truth_label[:10],
             (inferred or "(拒识)")[:12], mark, sec,
             ("  ⚠" + err[:20]) if err else ""))
 

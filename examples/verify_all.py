@@ -55,6 +55,7 @@ SUITE_NAMES = {
     'verify_full_extension.py':    '全量扩展',
     'verify_advanced_review.py':   '高级模板+审图',
     'verify_notes_fullset.py':     '说明全套',
+    'verify_prepare.py':           'DXF 预处理',
 }
 
 # 1) 显式计数

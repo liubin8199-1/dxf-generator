@@ -1,8 +1,8 @@
 ---
 name: dxf-generator
-description: 用自然语言生成 DXF 矢量图纸的 Skill。封装 ezdxf 核心能力（文档/模型空间/图元/图层/保存/图纸空间），提供高层绘图库 dxfkit.py，让 Agent 把"画一个XX平面图/零件图/布置图/电气图"直接转成可打开的 .dxf 文件。无需安装 AutoCAD。支持五大功能：导入修改、参数化模板、批量处理、样式系统、自然语言分发；扩展模块含 geomkit 高级几何（齿轮/螺旋/贝塞尔）、archkit 建筑标准（轴网/双线墙/门窗/楼梯/图框/户型生成器）、budget 造价预算与采购清单、templates_arch 建筑专业（立面/剖面/节点大样/楼梯详图）、templates_struct 结构专业（钢筋符号/柱/板/基础/楼梯配筋）、templates_mep 机电专业（电气符号/电气图例/照明平面）；**GB/T 国标标准化**：gb_standards.py 提供 48 个国标图层、标准线型/线宽、符号/文字/图框标准与 GBDxfBuilder（A0~A4 图框+标题栏+1:100 视口，可直接出全套施工图）；**中文字体支持**：font_manager.py 自动注册 GB_CHINESE/GB_TITLE/GB_MULTILINE 样式（gbenor.shx + gbcbig.shx），所有含 CJK 的 TEXT/MTEXT 实体自动绑定中文样式，杜绝「中文显示为 ??」乱码；**施工说明模块**：construction_notes.py 按 GB 系列规范自动生成各专业施工说明（一般/土方/基础/主体/砌体/屋面/装饰/给排水/电气/暖通/消防/安全），一行 API 即可把说明写入图纸空间说明栏或模型空间；**施工规范引用模块**：construction_codes.py 内置 GB/JGJ 规范库 64 条×13 类，按图纸类型/专业自动匹配 强条/推荐/参考，CodeAwareDxfBuilder 一行把规范清单画进图纸空间或模型空间；**图纸管理全套**：drawing_management.py（图纸编号系统/目录/图签+会签栏/门窗表/材料做法表/结构设计说明/设备材料表/工程量清单 + CompleteDrawingManager 一键出全部表格）；**高级专业模板**：templates_advanced.py 十个模块——总平面图、防火分区·消防疏散图、空调系统图、防排烟系统图、雨水系统图、火灾报警系统图、智能化系统图、施工进度横道图、施工总平面图、钢结构详图（钢柱/钢梁）；**图纸审查系统**：v1.8.0 起 drawing_review.py 对图纸做 图层/图框/文字/尺寸/完整性/规范引用 六项自动检查，出 A~D 评级报告（文本 + 写入 DXF），ReviewAwareDxfBuilder 支持一行 .review()，BatchReviewer 批量汇总；**自然语言生成图纸**：v1.9.0 起 natural_language_engine.py 把中文描述（如「12x8 米三层住宅平面图带客厅厨房卧室」）按规则解析 → dispatch 到 26 类真实模板函数（含 ③ 层 7 类节点大样：16G101 混凝土 4 类「梁柱节点/楼梯节点/基础节点/桩基节点」+ GB 50017 钢结构 3 类「钢柱脚/钢梁柱栓焊混接/钢梁拼接」）→ 一键出图，NLAwareDxfBuilder 提供 `generate_from_text(text)`/`parse_text(text)` 入口；**识图评测集** `benchmarks/`（v1.17.6 起）：真实图纸真值表（含 `provenance` 来源字段）+ `eval.py` 报「严格/宽松/拒识/空答/**认错**」五口径并**按来源分组**（认错率只认 `external` 真实出图样本）+ `check_provenance.py` 来源取证闸门（用 `$LASTSAVEDBY` 识别自产样本，防止稀释指标；对 `aspose` 等**抹掉元数据的转换产物**另有**结构指纹兜底**：`$ACADVER` + 实体量级 + 图层数）；**DWG→DXF 预处理** `examples/dxf_prepare.py`（v1.17.7）：剥 OBJECTS 段 / 删畸形表记录 / 剥离缩略图 XDATA / 二进制块归一 / 补三类漏写的 `SEQEND`（含 `66=1` 声明但无 ATTRIB 的情形），自带**组数守恒断言**，不守恒即抛错拒写；**统一验证入口** `examples/verify_all.py`（v1.17.5）：一句话跑完全部 verify 套件并汇总；**一键流水线**：v1.16.0 起 pipeline.py 把「出图→识图→算量→施工说明→审查→渲染→3D体量→汇总」串成一条链，`pipeline("一句话", out_dir)` 一次产出全套交付包（DXF + 工程量清单 4 格式 + 施工说明 + 识图报告 + 审查报告 + 3D 模型/HTML + manifest 清单），单条约 2.7 秒；**v1.17.0 起施工说明自动写入图纸空间说明栏**（按国标图框几何算出，装不下自动分页为「说明续页」图幅），模型空间保持干净；新增**成品图幅渲染**（`space='paper'`，出图框+标题栏+说明栏+视口图形的打印效果图），并修复 `add_gb_sheet` 从 v1.14 起就存在的**视口比例 bug**（`add_viewport` 第 4 参是 view_height 不是比例，导致视口只看到 0.01mm 切片）；**v1.17.1 起识图读取通用化**：`drawing_reader` 增加容错加载（严格失败自动退 recover）与 `\U+XXXX` 中文转义解码（外部软件转出的真实图纸图层名常写成 `IRC\U+5929\U+82B1`，不解码会让按图层名匹配的规则静默失效），并容忍无名图层；配套 `examples/dxf_prepare.py` 做 DXF 预处理（剥 OBJECTS 段 + 删缺名字的表记录），`examples/dwg2dxf_convert.py` 用 aspose-cad 的 `CadOutputMode.CONVERT` 把 DWG 忠实转 DXF。
+description: 用自然语言生成 DXF 矢量图纸的 Skill。封装 ezdxf 核心能力（文档/模型空间/图元/图层/保存/图纸空间），提供高层绘图库 dxfkit.py，让 Agent 把"画一个XX平面图/零件图/布置图/电气图"直接转成可打开的 .dxf 文件。无需安装 AutoCAD。支持五大功能：导入修改、参数化模板、批量处理、样式系统、自然语言分发；扩展模块含 geomkit 高级几何（齿轮/螺旋/贝塞尔）、archkit 建筑标准（轴网/双线墙/门窗/楼梯/图框/户型生成器）、budget 造价预算与采购清单、templates_arch 建筑专业（立面/剖面/节点大样/楼梯详图）、templates_struct 结构专业（钢筋符号/柱/板/基础/楼梯配筋）、templates_mep 机电专业（电气符号/电气图例/照明平面）；**GB/T 国标标准化**：gb_standards.py 提供 48 个国标图层、标准线型/线宽、符号/文字/图框标准与 GBDxfBuilder（A0~A4 图框+标题栏+1:100 视口，可直接出全套施工图）；**中文字体支持**：font_manager.py 自动注册 GB_CHINESE/GB_TITLE/GB_MULTILINE 样式（gbenor.shx + gbcbig.shx），所有含 CJK 的 TEXT/MTEXT 实体自动绑定中文样式，杜绝「中文显示为 ??」乱码；**施工说明模块**：construction_notes.py 按 GB 系列规范自动生成各专业施工说明（一般/土方/基础/主体/砌体/屋面/装饰/给排水/电气/暖通/消防/安全），一行 API 即可把说明写入图纸空间说明栏或模型空间；**施工规范引用模块**：construction_codes.py 内置 GB/JGJ 规范库 64 条×13 类，按图纸类型/专业自动匹配 强条/推荐/参考，CodeAwareDxfBuilder 一行把规范清单画进图纸空间或模型空间；**图纸管理全套**：drawing_management.py（图纸编号系统/目录/图签+会签栏/门窗表/材料做法表/结构设计说明/设备材料表/工程量清单 + CompleteDrawingManager 一键出全部表格）；**高级专业模板**：templates_advanced.py 十个模块——总平面图、防火分区·消防疏散图、空调系统图、防排烟系统图、雨水系统图、火灾报警系统图、智能化系统图、施工进度横道图、施工总平面图、钢结构详图（钢柱/钢梁）；**图纸审查系统**：v1.8.0 起 drawing_review.py 对图纸做 图层/图框/文字/尺寸/完整性/规范引用 六项自动检查，出 A~D 评级报告（文本 + 写入 DXF），ReviewAwareDxfBuilder 支持一行 .review()，BatchReviewer 批量汇总；**自然语言生成图纸**：v1.9.0 起 natural_language_engine.py 把中文描述（如「12x8 米三层住宅平面图带客厅厨房卧室」）按规则解析 → dispatch 到 26 类真实模板函数（含 ③ 层 7 类节点大样：16G101 混凝土 4 类「梁柱节点/楼梯节点/基础节点/桩基节点」+ GB 50017 钢结构 3 类「钢柱脚/钢梁柱栓焊混接/钢梁拼接」）→ 一键出图，NLAwareDxfBuilder 提供 `generate_from_text(text)`/`parse_text(text)` 入口；**识图评测集** `benchmarks/`（v1.17.6 起）：真实图纸真值表（含 `provenance` 来源字段）+ `eval.py` 报「严格/宽松/拒识/空答/**认错**」五口径并**按来源分组**（认错率只认 `external` 真实出图样本）+ `check_provenance.py` 来源取证闸门（用 `$LASTSAVEDBY` 识别自产样本，防止稀释指标；对 `aspose` 等**抹掉元数据的转换产物**另有**结构指纹兜底**：`$ACADVER` + 实体量级 + 图层数）；**DWG→DXF 预处理** `examples/dxf_prepare.py`（v1.17.8）：剥 OBJECTS 段 / 删畸形表记录 / 剥离缩略图 XDATA / 二进制块归一 / **补三处结构缺陷**（漏写的 `SEQEND`，含 `66=1` 声明但无 ATTRIB 的情形）/ **补未闭合 SECTION 的 `ENDSEC`** / **删空句柄组**，自带**组数守恒断言 + 两道结构自检**，不守恒即抛错拒写；**统一验证入口** `examples/verify_all.py`（v1.17.5）：一句话跑完全部 verify 套件并汇总；**一键流水线**：v1.16.0 起 pipeline.py 把「出图→识图→算量→施工说明→审查→渲染→3D体量→汇总」串成一条链，`pipeline("一句话", out_dir)` 一次产出全套交付包（DXF + 工程量清单 4 格式 + 施工说明 + 识图报告 + 审查报告 + 3D 模型/HTML + manifest 清单），单条约 2.7 秒；**v1.17.0 起施工说明自动写入图纸空间说明栏**（按国标图框几何算出，装不下自动分页为「说明续页」图幅），模型空间保持干净；新增**成品图幅渲染**（`space='paper'`，出图框+标题栏+说明栏+视口图形的打印效果图），并修复 `add_gb_sheet` 从 v1.14 起就存在的**视口比例 bug**（`add_viewport` 第 4 参是 view_height 不是比例，导致视口只看到 0.01mm 切片）；**v1.17.1 起识图读取通用化**：`drawing_reader` 增加容错加载（严格失败自动退 recover）与 `\U+XXXX` 中文转义解码（外部软件转出的真实图纸图层名常写成 `IRC\U+5929\U+82B1`，不解码会让按图层名匹配的规则静默失效），并容忍无名图层；配套 `examples/dxf_prepare.py` 做 DXF 预处理（剥 OBJECTS 段 + 删缺名字的表记录），`examples/dwg2dxf_convert.py` 用 aspose-cad 的 `CadOutputMode.CONVERT` 把 DWG 忠实转 DXF。
 category: engineering-cad
-version: 1.17.7
+version: 1.17.8
 author: 小海(WorkBuddy)
 ---
 
@@ -1797,4 +1797,99 @@ aspose CONVERT 转出的真实图纸，**`$LASTSAVEDBY` 实测 24/24 全空**。
 A 方案落地后 external 真实样本 **8 → 22 张**（离 30 张目标仍有距离）。
 B 方案（全批 188 张 + 改框架支持"真值=图别集合"）待 A 落地、真实基线稳定后再议 ——
 那 5 张被剔除的套图是它的现成第一批数据。
+
+（→ v1.17.8 已实际落地：**18 张入库，external 8 → 26 张**，见下节。）
+
+---
+
+## v1.17.8 · 别墅样本入库 + 又修两类读不了 + 补上 `dxf_prepare` 的验证空洞
+
+### 一、又修两类「彻底读不了」（`examples/dxf_prepare.py`）
+
+**第 ④ 类：`TABLES` 段失去 `ENDSEC` —— ⚠️ 这一类是我们自己造的**
+- **现象**：`18 别墅_别墅结构1.09.dxf` → `DXFStructureError: missing ENDSEC tag.`
+- **根因**：`_repair_table_records()` 只按"下一个 `NAMED_TABLES` 记录头"切记录边界。
+  排在**表末尾**的那条无名记录，会把紧跟其后的 `0 ENDTAB` / `0 ENDSEC` 一起算进自己的
+  记录体；该记录因无名被丢弃时，**段尾标记跟着陪葬** → TABLES 段永久失去 ENDSEC。
+- **佐证**：原文件另报 `DXFTypeError: name has to be a string, got <class 'NoneType'>`
+  —— 正是触发这一路的条件（**最后一条表记录缺 `2` 名字组**）。
+- **修法（双保险）**：
+  1. **治本**：记录边界改为在 `ENDTAB`/`ENDSEC`/`TABLE` 处也切断
+     （新增 `TABLE_RECORD_HEADS = NAMED_TABLES ∪ {ENDTAB, ENDSEC, TABLE}`）；
+  2. **兜底**：新增 `repair_missing_endsec()`，事后给未闭合的 SECTION 补 ENDSEC。
+- **修后**：`补ENDSEC=0`（边界修法已从源头保住），strict ✅。
+
+**第 ⑤ 类：`ENDBLK` 空句柄**（`drop_empty_handles()`）
+- **现象**：`24 别墅_E门窗.dxf` → `ValueError: Invalid handle .`；
+  recover 模式只能刷屏 `skipped invalid handle "" in DXF entity "ENDBLK"`。
+- **根因**：`ENDBLK` 的 `5`（句柄）值为**空字符串**。空句柄在 DXF 里**任何情况下都非法**。
+- **实测**：`E门窗` **12 处**、`E立面` **19 处** → 两张都从 recover 升到 **strict**。
+- **修法**：删掉该 `5` 组，ezdxf 会像处理"无句柄旧版 DXF"一样自动补新句柄。
+
+**副产品：一个"看着像漏修"的噪声**
+`E门窗` 的组码 **450~459（MLINE）**有 **91 处**横线十六进制（同第 ③ 类的家族），
+但**全部宿主在 OBJECTS 段的 XRECORD 里**，随「整段删 OBJECTS」自然消失（clean 实测 **0 处**）。
+**无需新增修复**，已写进注释以防下次误判。
+
+**效果**：别墅 24 张 **严格可读 24 / 需 recover 0 / 失败 0**（v1.17.7 时 21/3/0）。
+守恒断言扩容为：
+`输出组数 == 输入 - 删OBJECTS - 删畸形表记录 - 删图标XDATA + 补SEQEND + 补ENDSEC - 删空句柄`，
+另加两道**结构自检**（每 SECTION 必有 ENDSEC、不得残留空句柄组），任一不满足即 `AssertionError` 拒写。
+
+### 二、★ 补上最大的一块验证空洞：`examples/verify_prepare.py`（53 断言）
+
+> `dxf_prepare` 从 v1.17.6 起累积了 5 类缺陷，却**没有任何套件覆盖它** ——
+> 所以第 ④ 类（自己吞掉 ENDSEC）能一直潜伏到这批别墅图才被撞出来。
+
+用**合成 DXF**（ezdxf 生成基线 + 文本层注入缺陷），**不依赖任何外部图纸数据集**。
+每类都要过四关：① 注入后**确实读不了**（负向对照）→ ② `prepare` 不抛异常且守恒 →
+③ `prepare` 后**严格模式可读** → ④ 关键结构仍在。
+
+**两个注入陷阱**（已写进脚本注释，都是踩过的）：
+1. **第 ② 类的基线里，INSERT 后面必须再跟一个实体**。若 INSERT 后面直接是 `0 ENDSEC`，
+   ezdxf 的链接子实体循环**自然结束、不报错**，缺陷复现不出来。
+2. **第 ④ 类必须"删掉 `2` 组"，不能"置空串"**。空串仍是 `str`，ezdxf 不报错；
+   只有组缺失才让 `name` 变成 `None` → 才会报 `DXFTypeError`。
+
+### 三、`benchmarks/eval.py` 修一个会让整批评测崩掉的 bug（度量教训 #4）
+
+- **现象**：OOV 样本的真值写的是 `"type": null`，`truth = s.get("type", "")` 取到的却是 **`None`**
+  → 打印时 `truth[:10]` 抛 `TypeError: 'NoneType' object is not subscriptable`，**评测中断**。
+- **修**：统一 `(s.get("type") or "").strip()`，显示层用 `(OOV 无对应类)` 标签。
+- ⚠️ **教训推广**：`dict.get(k, default)` 的 default **只兜"键缺失"，不兜"值为 null"**。
+  读外部 JSON 一律用 `x.get(k) or default`。
+
+### 四、★ 真实基线（`eval.py --external-only`，external n = 8 → **26**）
+
+| 口径 | v1.17.6 (n=8) | **v1.17.8 (n=26)** |
+|---|---|---|
+| 严格正确 | 0 (0%) | **3 (11.5%)** |
+| 宽松正确 | 1 | 1 (3.8%) |
+| 正确拒识 | 0（桶**结构性恒为 0**） | **3 (11.5%)** ← 首次出现 |
+| **★ 认错** | **7 (87.5%)** | **19 (73.1%)** |
+| 　自信答错 | 7 | 16 (61.5%) |
+| 　空答/弃权 | 0 | 3 (11.5%) |
+
+⚠️ **87.5% → 73.1% 不是能力提升**，是分母从 8 张换成 26 张（含 14 张新别墅图 + 4 张 OOV）。
+**禁止当作改进证据。**
+
+**两个可直接读出的信号**：
+1. **首次出现「正确拒识」**：3 张 3D/效果图**真的弃权了** → 待办 P0「给 `read()` 加弃权能力」
+   这条路**已被证明可行**（历史上 `refused` 桶恒为 0，因为占位符 `"未识别"` 是非空字符串）。
+2. **最大错误簇：5 张被齐刷刷识成 `火灾报警图`**
+   （`01 材料表`/`02 通用剖面图`/`03 1F`/`05 2F`/`06 3F`），占 16 处自信答错的 **31%**。
+   已知是**模板图例污染** → 压认错率的**第一顺位靶子**，优先于调关键词。
+
+### 五、入库清单（18 张）
+
+- **14 张单图别**：平面图 3 / 立面图 3 / 节点大样图 4 / 结构配筋图 3 / 结构图 1
+- **4 张 OOV**：透视图 / 鸟瞰图 / 三维模型 / `E门窗`（词表无「门窗图」类）
+- 被剔除 **5 张**（内容实为多图别套图）→ B 方案第一批数据
+- `ground_truth.json` v1.3 → **v1.4**，新增 `preprocess_note`（⚠️ raw/ 内预处理状态**不统一**：
+  基线 13 张仍带 OBJECTS 段，别墅 18 张已过 `dxf_prepare` —— 因 `read()` 不调 `prepare`）与 `baseline_note`。
+- 人读交付：`outputs/别墅样本_入库与真实基线报告.md`
+
+### 六、最终总验证
+**20 套件全绿 · 522 项可计数断言 · 0 失败**（约 1 分 21 秒）。
+新增 `examples/verify_prepare.py` **53/53**（已注册进 `verify_all.py` 的 `SUITE_NAMES`）。
 

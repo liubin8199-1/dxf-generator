@@ -36,6 +36,27 @@
      APPID `CONTENTBLOCKICON` 下 —— 是**块缩略图图标**（非图纸内容），
      既读不了又占体积，**整块删除**；其余残留的横线块做**去横线归一化**。
 
+  ⑦ ★ `TABLES` 段**失去 ENDSEC** —— ⚠️ 这一类是**我们自己造的**，不是转换器的锅。
+     2026-09-12 定位：`_repair_table_records()` 按"下一个 NAMED_TABLES 记录头"
+     切记录边界，于是**排在表末尾的那条无名记录**，会把紧跟其后的
+     `0 ENDTAB` 和 `0 ENDSEC` 一起算进自己的记录体；该记录因无名被丢弃时，
+     **段尾标记跟着陪葬**，TABLES 段就永久没了 ENDSEC。ezdxf 严格模式抛
+     `DXFStructureError("missing ENDSEC tag.")`（recover 能救，fix=2）。
+     实测 `别墅结构1.09.dwg` 命中。
+     → 双保险：① 记录边界改为在 `ENDTAB`/`ENDSEC`/`TABLE` 处也切断（治本）；
+        ② `repair_missing_endsec()` 事后给未闭合的 SECTION 补 ENDSEC（兜底）。
+
+  ⑧ ★ `ENDBLK` 的句柄组 `5` 是**空值**。
+     ezdxf 严格模式抛 `ValueError: Invalid handle .`；recover 只能
+     "skipped invalid handle" 跳过该实体。实测 `E门窗.dwg` 有 12 处
+     （含 BLOCKS 段全部 ENDBLK）。空句柄在 DXF 里**任何情况下都非法**
+     （句柄必须是十六进制串），删掉该 `5` 组后 ezdxf 会自动补新句柄。
+     → `drop_empty_handles()`。
+
+     ⚠️ 同类噪声但**无需处理**：该文件的 450~459（MLINE 组码）也有 91 处横线
+     十六进制，但全部宿主于 **OBJECTS 段的 XRECORD**，随 ① 的整段删除一并消失
+     （clean 实测 0 处）。记录在此，以免下次误判为漏修。
+
 ⚠️ 一个必须遵守的实现细节（踩过坑）：
    DXF 的行是 **code/value 成对** 的，而"值"本身完全可以是 `0`
    （实测有 `281`/`0`、`90`/`0`、`1071`/`0`）。
@@ -60,6 +81,13 @@ RE_UESC = re.compile(r"\\U\+([0-9A-Fa-f]{4})")
 
 NAMED_TABLES = ("LAYER", "LTYPE", "STYLE", "BLOCK_RECORD",
                 "VPORT", "APPID", "DIMSTYLE", "UCS")
+
+# TABLES 段里算作"记录边界"的 code=0 值：
+#  · NAMED_TABLES → 实体记录头（要检查有没有名字）
+#  · ENDTAB/ENDSEC/TABLE → 表的收尾与下一个表的开头，**必须**当边界切断，
+#    否则排在表末尾的无名记录会把段尾标记一起吞掉（见 docstring ⑦）。
+TABLE_STRUCT_MARKERS = ("ENDTAB", "ENDSEC", "TABLE")
+TABLE_RECORD_HEADS = frozenset(NAMED_TABLES) | frozenset(TABLE_STRUCT_MARKERS)
 
 # 只做缩略图/图标、不含图纸内容的 XDATA APPID —— 连同其 1004 二进制块一起删。
 # CONTENTBLOCKICON 是 AutoCAD 给块存的预览图，实测 `E立面.dwg` 里 85 处
@@ -137,8 +165,13 @@ def repair_table_records(pairs):
 def _repair_table_records(pairs):
     """删掉 TABLES 段里"缺名字"的表记录。
 
-    在 (code,value) 序列上做，只在 `0 <NAMED_TABLES 之一>` 处切记录 ——
+    在 (code,value) 序列上做，只在 `0 <边界标记>` 处切记录 ——
     因为只有 code==0 才是记录头，值行再怎么等于 "0" 也不会被误切。
+
+    ★ 边界标记 = NAMED_TABLES ∪ {ENDTAB, ENDSEC, TABLE}。后三个必须算边界：
+      否则"排在表末尾的无名记录"会把 `0 ENDTAB` / `0 ENDSEC` 一起吞进自己的
+      记录体，丢弃该记录时**段尾标记跟着陪葬** → TABLES 段失去 ENDSEC
+      → ezdxf 严格模式报 `missing ENDSEC tag.`（历史事故，见 docstring ⑦）。
 
     返回 (删掉的记录数, 删掉的 pair 数)。
     """
@@ -147,16 +180,18 @@ def _repair_table_records(pairs):
         return 0, 0
     a, b = span
     seg = pairs[a:b + 1]
-    # 记录头索引
-    heads = [i for i in range(len(seg) - 1)
-             if seg[i][0] == "0" and seg[i][1].strip() in NAMED_TABLES]
+    # 所有边界标记位置，及"每个边界之后的下一个边界"（预计算，避免 O(n²)）
+    stops = [i for i in range(len(seg))
+             if seg[i][0] == "0" and seg[i][1].strip() in TABLE_RECORD_HEADS]
+    heads = [i for i in stops if seg[i][1].strip() in NAMED_TABLES]
     if not heads:
         return 0, 0
+    next_stop = {stops[i]: stops[i + 1] for i in range(len(stops) - 1)}
     out = []
     dropped = 0
     prev = 0
-    for idx, h in enumerate(heads):
-        end = heads[idx + 1] if idx + 1 < len(heads) else len(seg)
+    for h in heads:
+        end = next_stop.get(h, len(seg))
         out.extend(seg[prev:h])          # 记录之前的非记录内容原样保留
         rec = seg[h:end]
         has_name = any(rec[p][0] == "2" and rec[p][1].strip()
@@ -166,9 +201,48 @@ def _repair_table_records(pairs):
         else:
             dropped += 1
         prev = end
-    out.extend(seg[prev:])
+    out.extend(seg[prev:])               # 段尾标记（ENDTAB/ENDSEC）原样保留
     pairs[a:b + 1] = out
     return dropped, len(seg) - len(out)
+
+
+def repair_missing_endsec(pairs):
+    """给**没有 ENDSEC 收尾**的 SECTION 补上 `0 ENDSEC`（兜底，见 docstring ⑦）。
+
+    aspose 转换器与历史上的 `_repair_table_records` 都可能让某个段的 ENDSEC
+    丢失；ezdxf 严格模式会直接抛 `missing ENDSEC tag.`。
+    这里只做机械补齐：遇到下一个 `0 SECTION`（或 `0 EOF`、或文件结束）时，
+    若上一个 SECTION 还没 ENDSEC，就先补一个。
+
+    返回补的处数。
+    """
+    out = []
+    opened = 0
+    added = 0
+    for c, v in pairs:
+        head = v.strip() if c == "0" else None
+        if head == "SECTION":
+            if opened:
+                out.append(("0", "ENDSEC"))
+                added += 1
+                opened = 0
+            out.append((c, v))
+            opened = 1
+        elif head in ("ENDSEC", "EOF"):
+            if head == "EOF" and opened:
+                out.append(("0", "ENDSEC"))
+                added += 1
+                opened = 0
+            out.append((c, v))
+            if head == "ENDSEC":
+                opened = 0
+        else:
+            out.append((c, v))
+    if opened:
+        out.append(("0", "ENDSEC"))
+        added += 1
+    pairs[:] = out
+    return added
 
 
 def strip_icon_xdata(pairs, appids=ICON_XDATA_APPIDS):
@@ -211,6 +285,58 @@ def normalize_binary_chunks(pairs):
                 pairs[idx] = (c, s.replace("-", ""))
                 fixed += 1
     return fixed
+
+
+def drop_empty_handles(pairs, codes=("5",)):
+    """删掉**值为空**的句柄组（默认 code=5）。见 docstring ⑧。
+
+    空句柄在任何 DXF 里都非法（句柄必须是十六进制串）：
+      · 严格模式 → `ValueError: Invalid handle .`
+      · recover  → "skipped invalid handle ... in DXF entity ENDBLK"（跳过该实体）
+    删掉该组后，ezdxf 会像处理"无句柄的旧版 DXF"一样自动分配新句柄。
+
+    实测 `E门窗.dwg` 有 12 处空句柄，全部在 BLOCKS 段的 `ENDBLK` 上。
+
+    ⚠️ 只动精确等于 `5` 的组（105 是 DIMSTYLE 句柄，语义相同，
+       但目前从未观测到空值，按最小改动原则不纳入；若日后出现再扩）。
+
+    返回删掉的组数。
+    """
+    out = []
+    removed = 0
+    for c, v in pairs:
+        if c in codes and not v.strip():
+            removed += 1
+            continue
+        out.append((c, v))
+    pairs[:] = out
+    return removed
+
+
+def _unclosed_sections(pairs):
+    """返回未闭合 SECTION 的 (索引, 段名) 列表（自检用）。"""
+    bad = []
+    opened = None
+    for i, (c, v) in enumerate(pairs):
+        if c != "0":
+            continue
+        head = v.strip()
+        if head == "SECTION":
+            if opened is not None:
+                bad.append(opened)
+            name = ""
+            for j in range(i + 1, min(i + 4, len(pairs))):
+                if pairs[j][0] == "2":
+                    name = pairs[j][1].strip()
+                    break
+            opened = (i, name)
+        elif head in ("ENDSEC", "EOF"):
+            if head == "EOF" and opened is not None:
+                bad.append(opened)
+            opened = None
+    if opened is not None:
+        bad.append(opened)
+    return bad
 
 
 def repair_missing_seqend(pairs):
@@ -289,14 +415,20 @@ def repair_missing_seqend(pairs):
 
 
 def prepare(src, dst):
-    """预处理：删 OBJECTS 段 + 修畸形表记录 + 删图标 XDATA + 归一二进制块 + 补漏写的 SEQEND。
+    """预处理：删 OBJECTS 段 + 修畸形表记录 + 补 ENDSEC + 删图标 XDATA
+    + 归一二进制块 + 补漏写的 SEQEND + 删空句柄。
 
     自带**组数守恒断言**（按 (code,value) 组记账，精确到组）：
         输出组数 == 输入组数 - 删的 OBJECTS 组 - 删的畸形表记录组
                               - 删的图标 XDATA 组 + 补的 SEQEND 组
+                              + 补的 ENDSEC 组 - 删的空句柄组
     （`normalize_binary_chunks` 只改值不加删组，故不进账。）
     不成立说明本函数吃/造了数据（历史上真发生过，见模块 docstring 的代价说明），
     此时抛 AssertionError 而不是静默产出坏文件。
+
+    另有两道**结构自检**（v1.17.8 加，防止再出"能写出但读不了"的文件）：
+      · 每个 SECTION 都必须有 ENDSEC；
+      · 不得残留空句柄组。
     """
     with open(src, "r", encoding="utf-8", errors="replace") as f:
         lines = [l.rstrip("\r\n") for l in f]
@@ -306,31 +438,50 @@ def prepare(src, dst):
 
     obj = strip_section(pairs, "OBJECTS")               # 返回删掉的组数
     bad, bad_pairs = _repair_table_records(pairs)
+    endsec_added = repair_missing_endsec(pairs)         # 兜底补段尾 ENDSEC（⑦）
     icon_blocks, icon_pairs = strip_icon_xdata(pairs)   # 缩略图 XDATA（含非法二进制）
     binary_fixed = normalize_binary_chunks(pairs)       # 横线十六进制 → 纯十六进制
     pairs, add_poly, add_ins, add_ins_declared = repair_missing_seqend(pairs)
+    empty_handles = drop_empty_handles(pairs)           # 空句柄组（⑧）
     out_pairs = len(pairs)
     seqend_added = add_poly + add_ins
 
-    expect = in_pairs - obj - bad_pairs - icon_pairs + seqend_added
+    expect = (in_pairs - obj - bad_pairs - icon_pairs
+              + seqend_added + endsec_added - empty_handles)
     if out_pairs != expect:
         raise AssertionError(
             "dxf_prepare 组数不守恒：输入 %d 组 → 输出 %d 组（差 %+d），"
-            "但按账应为 %d 组（-OBJECTS %d -表记录 %d -图标XDATA %d +SEQEND %d）。"
+            "但按账应为 %d 组（-OBJECTS %d -表记录 %d -图标XDATA %d +SEQEND %d"
+            " +ENDSEC %d -空句柄 %d）。"
             "修复逻辑吃/造了数据，拒绝写出。"
             % (in_pairs, out_pairs, out_pairs - in_pairs, expect,
-               obj, bad_pairs, icon_pairs, seqend_added))
+               obj, bad_pairs, icon_pairs, seqend_added, endsec_added,
+               empty_handles))
+
+    unclosed = _unclosed_sections(pairs)
+    if unclosed:
+        raise AssertionError(
+            "dxf_prepare 结构自检失败：仍有 %d 个 SECTION 没有 ENDSEC —— %s。"
+            "这种文件 ezdxf 严格模式读不了（missing ENDSEC tag），拒绝写出。"
+            % (len(unclosed), unclosed[:5]))
+    leftovers = sum(1 for c, v in pairs if c == "5" and not v.strip())
+    if leftovers:
+        raise AssertionError(
+            "dxf_prepare 结构自检失败：仍残留 %d 个空句柄组（code=5 值为空），"
+            "ezdxf 严格模式会抛 Invalid handle。拒绝写出。" % leftovers)
 
     out_lines = _to_lines(pairs)
     with open(dst, "w", encoding="utf-8") as f:
         f.write("\n".join(out_lines) + "\n")
     return {"src_lines": n0, "dst_lines": len(out_lines),
             "objects_removed": obj, "records_dropped": bad,
+            "endsec_added": endsec_added,
             "icon_xdata_blocks": icon_blocks, "icon_xdata_pairs": icon_pairs,
             "binary_chunks_fixed": binary_fixed,
             "seqend_polyline": add_poly, "seqend_insert": add_ins,
             "seqend_insert_declared": add_ins_declared,
             "seqend_added": seqend_added,
+            "empty_handles_removed": empty_handles,
             "pairs_in": in_pairs, "pairs_out": out_pairs,
             "pairs_check": expect}
 

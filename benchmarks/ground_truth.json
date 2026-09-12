@@ -1,10 +1,12 @@
 {
-  "version": "1.2",
-  "description": "识图评测真值表（v1.17.6 · B 路线）。共 21 张 = 外部真实 8 张（01~06 + 牧马中央空调 + 荣和大地店）+ 本机脚本自产 13 张（桃花源60# 系列 12 张 + 剖面图_1-1）。⚠️ 2026-09-12 取证更正：原以为新增 13 张是『真实外部图纸』，实为 LASTSAVEDBY=ezdxf 的脚本产物（4 张内嵌『AI 平面示意草图』自述），混入会把认错率从 85.7% 稀释到 71.4%。★ 报数必须以 external 分组为准：严格正确 0/8、认错 7/8 (87.5%)。",
-  "vocab_note": "系统识图类型域共 34 类（见 drawing_reader.TYPE_BY_KEYWORDS / TYPE_BY_LAYERS）。真值不在域内时标 oov=true：此时【正确做法是拒识】(inferred 为空)，拒识不计入认错。",
+  "version": "1.4",
+  "description": "识图评测真值表（v1.17.8 · B 路线）。v1.3 新增别墅图纸集 A 方案样本（来源：百度网盘 30070062\\别墅建筑，aspose CONVERT + dxf_prepare）；v1.4 补上别墅 18 张入库 + OOV 4 张，external 8 → 26 张。⚠️ 用 eval.py --external-only 看真实识别能力；全量数字会被 self_generated 稀释。",
+  "vocab_note": "系统识图类型域共 34 类（见 drawing_reader.TYPE_BY_KEYWORDS / TYPE_BY_LAYERS）。真值不在域内时标 oov=true：此时【正确做法是拒识】(inferred 为空)，拒识不计入认错。⚠️ oov 样本的 type 写 null —— 消费者必须用 `x.get('type') or ''`，`dict.get(k,'')` 不兜 null（会让 truth[:10] 崩掉整批评测，v1.17.8 已修 eval.py）。",
   "metric_note": "认错 = 有输出(inferred 非空) 且 不严格正确 且 不宽松正确。⚠️ 必须报『认错率』，不能只报『有没有识别』——旧口径『识别成功 100%』是假指标（只统计有没有输出，不统计对不对）。",
+  "preprocess_note": "⚠️ raw/ 内样本的预处理状态【不统一】：基线 13 张（桃花源 / 剖面图_1-1）仍带 OBJECTS 段（未过 dxf_prepare），别墅 18 张是 aspose CONVERT → dxf_prepare 的产物。原因是 drawing_reader.read() 不调用 prepare（只做 strict→recover 兜底），raw/ 里放什么就读什么。这不影响识别口径（OBJECTS 段不参与识别输入特征），但若要严格可比，应让 eval 对所有样本统一过同一个 prepare —— 属待办（会改变历史基线，故未擅动）。",
   "source_dir": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf",
-  "source_note": "新增 13 张源为 C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\（已拷入 raw/，可脱离外部路径）。基线 7 张 source 指向 dwg_probe/out_dxf。",
+  "source_note": "基线 7 张 source 指向 dwg_probe/out_dxf（⚠️ 该目录是 source 回退路径，不可删）；13 张桃花源源为 OneDrive 刘斌归档；别墅 18 张源为 F:\\BaiduNetdiskDownload\\...\\30070062\\别墅建筑。全部已拷入 raw/，可脱离外部路径。",
+  "baseline_note": "v1.17.8 真实基线（eval.py --external-only，n=26）：严格正确 3 (11.5%) / 宽松 1 / 正确拒识 3 / ★认错 19 (73.1%) = 自信答错 16 (61.5%) + 空答 3 (11.5%)。对比 v1.17.6 的 n=8 → 认错 7 (87.5%)：★ 分母不同，87.5%→73.1% 不是能力提升。最大错误簇：5 张被识成『火灾报警图』（占 16 处自信答错的 31%），疑为模板图例污染。",
   "samples": [
     {
       "file": "01 材料表.dxf",
@@ -14,7 +16,7 @@
       "source": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf\\p_01 材料表.dxf",
       "notes": "模型空间仅 996 实体（主体在 Layout1）。系统无『材料表』类型 → 正确做法是拒识。实测识成『火灾报警图』（模板图例污染）。",
       "provenance": "external",
-      "provenance_evidence": "LASTSAVEDBY=Administrator，AC1021，120 图层（A建墙/A窗电梯 设计院模板）"
+      "provenance_evidence": "LASTSAVEDBY='Administrator'（真实出图用户），ACADVER=AC1021，120 图层/262 实体"
     },
     {
       "file": "02 通用剖面图.dxf",
@@ -27,7 +29,7 @@
       "source": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf\\p_02 通用剖面图.dxf",
       "notes": "水平构造层 + 引出线。",
       "provenance": "external",
-      "provenance_evidence": "LASTSAVEDBY=Administrator，AC1021，188 图层"
+      "provenance_evidence": "LASTSAVEDBY='Administrator'（真实出图用户），ACADVER=AC1021，188 图层/11027 实体"
     },
     {
       "file": "03 1F.dxf",
@@ -40,7 +42,7 @@
       "source": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf\\p_03 1F.dxf",
       "notes": "首层平面，模型空间约 2.9 万实体（实体数量级本身是强信号）。",
       "provenance": "external",
-      "provenance_evidence": "LASTSAVEDBY=Administrator，AC1021，212 图层（0-结构/1-FF平面文字）"
+      "provenance_evidence": "LASTSAVEDBY='Administrator'（真实出图用户），ACADVER=AC1021，212 图层/29361 实体"
     },
     {
       "file": "04 -1F.dxf",
@@ -53,7 +55,7 @@
       "source": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf\\p_04 -1F.dxf",
       "notes": "地下一层平面。",
       "provenance": "external",
-      "provenance_evidence": "LASTSAVEDBY=Administrator，AC1024，195 图层"
+      "provenance_evidence": "LASTSAVEDBY='Administrator'（真实出图用户），ACADVER=AC1024，195 图层/25494 实体"
     },
     {
       "file": "05 2F.dxf",
@@ -66,7 +68,7 @@
       "source": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf\\p_05 2F.dxf",
       "notes": "二层平面。",
       "provenance": "external",
-      "provenance_evidence": "LASTSAVEDBY=妖怪，AC1021，137 图层"
+      "provenance_evidence": "LASTSAVEDBY='妖怪'（真实出图用户），ACADVER=AC1021，137 图层/11940 实体"
     },
     {
       "file": "06 3F.dxf",
@@ -79,7 +81,7 @@
       "source": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf\\p_06 3F.dxf",
       "notes": "三层平面。",
       "provenance": "external",
-      "provenance_evidence": "LASTSAVEDBY=w，AC1018，170 图层"
+      "provenance_evidence": "LASTSAVEDBY='w'（真实出图用户），ACADVER=AC1018，170 图层/15734 实体"
     },
     {
       "file": "牧马中央空调、新风、地暖施工图.dxf",
@@ -92,7 +94,7 @@
       "source": "C:\\Users\\binliu8199\\WorkBuddy\\2026-09-05-14-12-23\\outputs\\dwg_probe\\out_dxf\\p_牧马中央空调、新风、地暖施工图.dxf",
       "notes": "空调/新风/地暖三合一。",
       "provenance": "external",
-      "provenance_evidence": "LASTSAVEDBY=Administrator，AC1021，469 图层"
+      "provenance_evidence": "LASTSAVEDBY='Administrator'（真实出图用户），ACADVER=AC1021，469 图层/13527 实体"
     },
     {
       "file": "桃花源60#_一层_施工图_A1.dxf",
@@ -105,7 +107,7 @@
       "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_一层_施工图_A1.dxf",
       "notes": "真实施工图·首层平面（284 实体，真实图层 WALL/DOOR/CEN）",
       "provenance": "self_generated",
-      "provenance_evidence": "LASTSAVEDBY=ezdxf（Python 脚本产出），仅 13 个自定图层"
+      "provenance_evidence": "LASTSAVEDBY='ezdxf'（Python 脚本产出），ACADVER=AC1024，13 图层/284 实体"
     },
     {
       "file": "桃花源60#_二层_施工图_A1.dxf",
@@ -118,7 +120,7 @@
       "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_二层_施工图_A1.dxf",
       "notes": "真实施工图·二层平面（297 实体）",
       "provenance": "self_generated",
-      "provenance_evidence": "LASTSAVEDBY=ezdxf，仅 13 个自定图层"
+      "provenance_evidence": "LASTSAVEDBY='ezdxf'（Python 脚本产出），ACADVER=AC1024，13 图层/297 实体"
     },
     {
       "file": "桃花源60#_地下一层_施工图_A1.dxf",
@@ -131,7 +133,7 @@
       "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_地下一层_施工图_A1.dxf",
       "notes": "真实施工图·地下一层平面（285 实体）",
       "provenance": "self_generated",
-      "provenance_evidence": "LASTSAVEDBY=ezdxf，仅 13 个自定图层"
+      "provenance_evidence": "LASTSAVEDBY='ezdxf'（Python 脚本产出），ACADVER=AC1024，13 图层/285 实体"
     },
     {
       "file": "桃花源60#_地下二层_施工图_A1.dxf",
@@ -144,7 +146,7 @@
       "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_地下二层_施工图_A1.dxf",
       "notes": "真实施工图·地下二层平面（375 实体）",
       "provenance": "self_generated",
-      "provenance_evidence": "LASTSAVEDBY=ezdxf，仅 13 个自定图层"
+      "provenance_evidence": "LASTSAVEDBY='ezdxf'（Python 脚本产出），ACADVER=AC1024，13 图层/375 实体"
     },
     {
       "file": "桃花源60#_室内立面图一_A1.dxf",
@@ -156,7 +158,7 @@
       "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_室内立面图一_A1.dxf",
       "notes": "真实施工图·室内立面一（200 实体）",
       "provenance": "self_generated",
-      "provenance_evidence": "LASTSAVEDBY=ezdxf，仅 14 个自定图层"
+      "provenance_evidence": "LASTSAVEDBY='ezdxf'（Python 脚本产出），ACADVER=AC1024，14 图层/200 实体"
     },
     {
       "file": "桃花源60#_室内立面图二_A1.dxf",
@@ -168,7 +170,7 @@
       "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_室内立面图二_A1.dxf",
       "notes": "真实施工图·室内立面二（200 实体）",
       "provenance": "self_generated",
-      "provenance_evidence": "LASTSAVEDBY=ezdxf，仅 14 个自定图层"
+      "provenance_evidence": "LASTSAVEDBY='ezdxf'（Python 脚本产出），ACADVER=AC1024，14 图层/200 实体"
     },
     {
       "file": "桃花源60#_建筑立面图_A1.dxf",
@@ -180,7 +182,7 @@
       "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_建筑立面图_A1.dxf",
       "notes": "真实施工图·建筑立面（198 实体）",
       "provenance": "self_generated",
-      "provenance_evidence": "LASTSAVEDBY=ezdxf，仅 14 个自定图层"
+      "provenance_evidence": "LASTSAVEDBY='ezdxf'（Python 脚本产出），ACADVER=AC1024，14 图层/198 实体"
     },
     {
       "file": "桃花源60#_施工说明及材料清单_A1.dxf",
@@ -190,7 +192,7 @@
       "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_施工说明及材料清单_A1.dxf",
       "notes": "OOV：系统类型域无「施工说明/材料清单」→ 正确做法是拒识",
       "provenance": "self_generated",
-      "provenance_evidence": "LASTSAVEDBY=ezdxf，仅 14 个自定图层"
+      "provenance_evidence": "LASTSAVEDBY='ezdxf'（Python 脚本产出），ACADVER=AC1024，14 图层/217 实体"
     },
     {
       "file": "桃花源60#_一层平面示意_155平.dxf",
@@ -203,7 +205,7 @@
       "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_一层平面示意_155平.dxf",
       "notes": "真实平面示意图（47 实体，稀疏）",
       "provenance": "self_generated",
-      "provenance_evidence": "LASTSAVEDBY=ezdxf + 内嵌自述『AI 平面示意草图·非施工图』（铁证）"
+      "provenance_evidence": "内嵌自述 ['AI 平面', '反算', '示意草图', '非施工图']（铁证）；LASTSAVEDBY='ezdxf' ACADVER=AC1024 8 图层/47 实体"
     },
     {
       "file": "桃花源60#_二层平面示意_146平.dxf",
@@ -216,7 +218,7 @@
       "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_二层平面示意_146平.dxf",
       "notes": "真实平面示意图（47 实体，稀疏）",
       "provenance": "self_generated",
-      "provenance_evidence": "LASTSAVEDBY=ezdxf + 内嵌自述『AI 平面示意草图·非施工图』（铁证）"
+      "provenance_evidence": "内嵌自述 ['AI 平面', '反算', '示意草图', '非施工图']（铁证）；LASTSAVEDBY='ezdxf' ACADVER=AC1024 8 图层/47 实体"
     },
     {
       "file": "桃花源60#_地下一层平面示意_135平.dxf",
@@ -229,7 +231,7 @@
       "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_地下一层平面示意_135平.dxf",
       "notes": "真实平面示意图（仅 6 实体 → 近空图，边界样本）",
       "provenance": "self_generated",
-      "provenance_evidence": "LASTSAVEDBY=ezdxf + 内嵌自述『AI 平面示意草图·非施工图』『待现场测绘补录』（铁证）"
+      "provenance_evidence": "内嵌自述 ['AI 平面', '反算', '待现场测绘', '示意草图', '非施工图']（铁证）；LASTSAVEDBY='ezdxf' ACADVER=AC1024 8 图层/6 实体"
     },
     {
       "file": "桃花源60#_地下二层平面示意_265平.dxf",
@@ -242,7 +244,7 @@
       "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\桃花源60#_地下二层平面示意_265平.dxf",
       "notes": "真实平面示意图（73 实体）",
       "provenance": "self_generated",
-      "provenance_evidence": "LASTSAVEDBY=ezdxf + 内嵌自述『AI 平面示意草图·非施工图』（铁证）"
+      "provenance_evidence": "内嵌自述 ['AI 平面', '反算', '示意草图', '非施工图']（铁证）；LASTSAVEDBY='ezdxf' ACADVER=AC1024 8 图层/73 实体"
     },
     {
       "file": "剖面图_1-1.dxf",
@@ -255,7 +257,7 @@
       "source": "C:\\Users\\binliu8199\\OneDrive\\图片\\文档\\刘斌\\剖面图_1-1.dxf",
       "notes": "真实剖面图（56 实体，SEC_* 专业图层）",
       "provenance": "self_generated",
-      "provenance_evidence": "LASTSAVEDBY=ezdxf，17 图层含 SEC_HATCH/SEC_SLAB 等自定层（与桃花源60# 同源）"
+      "provenance_evidence": "LASTSAVEDBY='ezdxf'（Python 脚本产出），ACADVER=AC1024，17 图层/56 实体"
     },
     {
       "file": "荣和大地店_平面布置图20200307.dxf",
@@ -268,7 +270,226 @@
       "source": "C:/Users/binliu8199/OneDrive/Documents/旧机Administrator文档/东辰文件/荣和大地店/平面布置图20200307.dwg",
       "notes": "真实 DWG（商铺平面布置图 2020 外部来源）经 aspose CONVERT 转 DXF + 剥 OBJECTS。",
       "provenance": "external",
-      "provenance_evidence": "真实 DWG（AC1018，3050 实体：LWPOLYLINE 1871 + HATCH 1177）经 aspose CONVERT"
+      "provenance_evidence": "人工判定：真实 DWG（3050 实体：LWPOLYLINE 1871 + HATCH 1177）经 aspose CONVERT；转换会丢弃 $LASTSAVEDBY 与图层表（仅剩 0/Defpoints）。注：结构指纹规则（AC1018 + 3050 实体）现已能自动判为 external，此条保留人工描述作为更详细的证据"
+    },
+    {
+      "file": "07 别墅_多层别墅平面图.dxf",
+      "type": "平面图",
+      "family": [
+        "平面图",
+        "基础平面图"
+      ],
+      "oov": false,
+      "source": "F:\\BaiduNetdiskDownload\\...\\30070062\\别墅建筑（aspose CONVERT → dxf_prepare）",
+      "notes": "证据强：文字『平面图×38』居首（平面×63），另有『二层平面图/三层平面图/1:100』与房间名（餐厅/厨房/书房/主卧室）。多楼层但图别单一。实体8179/图层37。",
+      "provenance": "external",
+      "provenance_evidence": "★结构指纹判定：$ACADVER=AC1015（非 ezdxf 默认 AC1024/AC1027/AC1032）；实体 8179 ≥ 1000；另 37 图层/8179 实体；$LASTSAVEDBY 被格式转换（aspose CONVERT）抹除"
+    },
+    {
+      "file": "08 别墅_错层别墅建筑结构施工图.dxf",
+      "type": "平面图",
+      "family": [
+        "平面图",
+        "基础平面图"
+      ],
+      "oov": false,
+      "source": "F:\\BaiduNetdiskDownload\\...\\30070062\\别墅建筑（aspose CONVERT → dxf_prepare）",
+      "notes": "证据强：『平面图×33』居首；『三层平面图/四层平面图』+ 露台/阳台/卫生间/蒸汽室。★文件名自称『结构施工图』实际内容是平面图 —— 名字与内容不符正是真实场景，故保留原名入库。",
+      "provenance": "external",
+      "provenance_evidence": "★结构指纹判定：$ACADVER=AC1018（非 ezdxf 默认 AC1024/AC1027/AC1032）；实体 17928 ≥ 1000；另 47 图层/17928 实体；$LASTSAVEDBY 被格式转换（aspose CONVERT）抹除"
+    },
+    {
+      "file": "09 别墅_平面放大图.dxf",
+      "type": "平面图",
+      "family": [
+        "平面图",
+        "基础平面图"
+      ],
+      "oov": false,
+      "source": "F:\\BaiduNetdiskDownload\\...\\30070062\\别墅建筑（aspose CONVERT → dxf_prepare）",
+      "notes": "证据中：无强命中词（『放大图』不含『平面图』字样），但房间名齐全（客厅/餐厅/卧室/厨房/工人房/卫生间×20）+ 图层 STAIR/WINDOW/WALL。",
+      "provenance": "external",
+      "provenance_evidence": "★结构指纹判定：$ACADVER=AC1015（非 ezdxf 默认 AC1024/AC1027/AC1032）；实体 3674 ≥ 1000；另 17 图层/3674 实体；$LASTSAVEDBY 被格式转换（aspose CONVERT）抹除"
+    },
+    {
+      "file": "10 别墅_立面.dxf",
+      "type": "立面图",
+      "family": [
+        "立面图"
+      ],
+      "oov": false,
+      "source": "F:\\BaiduNetdiskDownload\\...\\30070062\\别墅建筑（aspose CONVERT → dxf_prepare）",
+      "notes": "证据强：『立面图×70』绝对居首。★内容实为【室内立面】（壁炉/酒柜/客厅/餐柜/室内满铺高档地毯/装饰案几），词表无『室内立面图』类，归入立面图。",
+      "provenance": "external",
+      "provenance_evidence": "★结构指纹判定：$ACADVER=AC1015（非 ezdxf 默认 AC1024/AC1027/AC1032）；实体 20491 ≥ 1000；另 16 图层/20491 实体；$LASTSAVEDBY 被格式转换（aspose CONVERT）抹除"
+    },
+    {
+      "file": "11 别墅_立面图.dxf",
+      "type": "立面图",
+      "family": [
+        "立面图"
+      ],
+      "oov": false,
+      "source": "F:\\BaiduNetdiskDownload\\...\\30070062\\别墅建筑（aspose CONVERT → dxf_prepare）",
+      "notes": "证据强：『立面图×8』；文字几乎全是标高尺寸（450/3600/3300/13300/2650）。图层仅 5 个、块 22 个 —— 极简但单一。",
+      "provenance": "external",
+      "provenance_evidence": "★结构指纹判定：$ACADVER=AC1015（非 ezdxf 默认 AC1024/AC1027/AC1032）；实体 20307 ≥ 1000；另 5 图层/20307 实体；$LASTSAVEDBY 被格式转换（aspose CONVERT）抹除"
+    },
+    {
+      "file": "12 别墅_别墅设计立面图.dxf",
+      "type": "立面图",
+      "family": [
+        "立面图"
+      ],
+      "oov": false,
+      "source": "F:\\BaiduNetdiskDownload\\...\\30070062\\别墅建筑（aspose CONVERT → dxf_prepare）",
+      "notes": "证据中偏弱（纯几何）：无图名字样，但实体分布是关键 —— 『石头分割×23556』（石材分格线=立面特征）+ WINDOW×8464 + column×7368 + pattern；块含 A18.9m×36（按高度命名的立面块）与 yantuo（檐托）。★95,773 实体仅 176 条文字，是全批最『哑』的一张 —— 用户决策：入库，若看图后判定有误可直接改标签重跑。",
+      "provenance": "external",
+      "provenance_evidence": "★结构指纹判定：$ACADVER=AC1015（非 ezdxf 默认 AC1024/AC1027/AC1032）；实体 95773 ≥ 1000；另 24 图层/95773 实体；$LASTSAVEDBY 被格式转换（aspose CONVERT）抹除"
+    },
+    {
+      "file": "13 别墅_建筑详图2.dxf",
+      "type": "节点大样图",
+      "family": [
+        "节点大样图",
+        "楼梯详图"
+      ],
+      "oov": false,
+      "source": "F:\\BaiduNetdiskDownload\\...\\30070062\\别墅建筑（aspose CONVERT → dxf_prepare）",
+      "notes": "证据强：『详图×162』压倒性居首；『剖面图 2-2』『1:50』『车库』。词表无『建筑详图』类，就近归入节点大样图。",
+      "provenance": "external",
+      "provenance_evidence": "★结构指纹判定：$ACADVER=AC1018（非 ezdxf 默认 AC1024/AC1027/AC1032）；实体 13979 ≥ 1000；另 38 图层/13979 实体；$LASTSAVEDBY 被格式转换（aspose CONVERT）抹除"
+    },
+    {
+      "file": "14 别墅_建筑详图1.dxf",
+      "type": "节点大样图",
+      "family": [
+        "节点大样图",
+        "楼梯详图"
+      ],
+      "oov": false,
+      "source": "F:\\BaiduNetdiskDownload\\...\\30070062\\别墅建筑（aspose CONVERT → dxf_prepare）",
+      "notes": "证据中：『详图×10』（另有剖面图×6）；『花坛二平面详图 1:20』『C-C剖面图 1:20』『预埋构件/预埋通长扁铁/焊接』。实体仅1221（全批最小，仍远超自产上限375）。",
+      "provenance": "external",
+      "provenance_evidence": "★结构指纹判定：$ACADVER=AC1018（非 ezdxf 默认 AC1024/AC1027/AC1032）；实体 1221 ≥ 1000；另 20 图层/1221 实体；$LASTSAVEDBY 被格式转换（aspose CONVERT）抹除"
+    },
+    {
+      "file": "15 别墅_节点.dxf",
+      "type": "节点大样图",
+      "family": [
+        "节点大样图",
+        "楼梯详图"
+      ],
+      "oov": false,
+      "source": "F:\\BaiduNetdiskDownload\\...\\30070062\\别墅建筑（aspose CONVERT → dxf_prepare）",
+      "notes": "证据中：无强命中词，但内容是构造做法详图 —— 『钢筋混凝土楼板/顶棚作法/水泥砂浆粘缸砖/1:2厚/(上人屋面)』+ 图层 STAIR/WALL/WINDOW/PUB_HATCH。",
+      "provenance": "external",
+      "provenance_evidence": "★结构指纹判定：$ACADVER=AC1015（非 ezdxf 默认 AC1024/AC1027/AC1032）；实体 1469 ≥ 1000；另 16 图层/1469 实体；$LASTSAVEDBY 被格式转换（aspose CONVERT）抹除"
+    },
+    {
+      "file": "16 别墅_2-270-节点大样.dxf",
+      "type": "节点大样图",
+      "family": [
+        "节点大样图",
+        "楼梯详图"
+      ],
+      "oov": false,
+      "source": "F:\\BaiduNetdiskDownload\\...\\30070062\\别墅建筑（aspose CONVERT → dxf_prepare）",
+      "notes": "证据中：『大样×30』；『饰线A/深啡色外墙涂料/浅黄色外墙涂料』+ 标高。★陷阱：图签块（tuA2|图签）含『电气/给排水/建筑/结构/暖通』五个专业名，那是【标题栏专业分栏】而非内容。",
+      "provenance": "external",
+      "provenance_evidence": "★结构指纹判定：$ACADVER=AC1018（非 ezdxf 默认 AC1024/AC1027/AC1032）；实体 6725 ≥ 1000；另 44 图层/6725 实体；$LASTSAVEDBY 被格式转换（aspose CONVERT）抹除"
+    },
+    {
+      "file": "17 别墅_结构.dxf",
+      "type": "结构配筋图",
+      "family": [
+        "结构配筋图",
+        "结构图"
+      ],
+      "oov": false,
+      "source": "F:\\BaiduNetdiskDownload\\...\\30070062\\别墅建筑（aspose CONVERT → dxf_prepare）",
+      "notes": "证据强：『配筋图×27』居首（梁×157/板×155/钢筋×64/柱×60/过梁×22）；文字是结构设计说明（填充墙/构造柱/过梁/配筋带/小型砌块）。",
+      "provenance": "external",
+      "provenance_evidence": "★结构指纹判定：$ACADVER=AC1018（非 ezdxf 默认 AC1024/AC1027/AC1032）；实体 7110 ≥ 1000；另 68 图层/7110 实体；$LASTSAVEDBY 被格式转换（aspose CONVERT）抹除"
+    },
+    {
+      "file": "18 别墅_别墅结构1.09.dxf",
+      "type": "结构配筋图",
+      "family": [
+        "结构配筋图",
+        "结构图"
+      ],
+      "oov": false,
+      "source": "F:\\BaiduNetdiskDownload\\...\\30070062\\别墅建筑（aspose CONVERT → dxf_prepare）",
+      "notes": "证据中偏强：『配筋图×18』居首（梁×126/板×74/钢筋×64）；钢筋符号密集（%%1308@150 = Ⅲ级钢Φ8@150）。★需 recover 模式读取（audit fixes=2），识图器已内置 strict→recover 容错。",
+      "provenance": "external",
+      "provenance_evidence": "★结构指纹判定：$ACADVER=AC1018（非 ezdxf 默认 AC1024/AC1027/AC1032）；实体 6065 ≥ 1000；另 64 图层/6065 实体；$LASTSAVEDBY 被格式转换（aspose CONVERT）抹除"
+    },
+    {
+      "file": "19 别墅_273结构.dxf",
+      "type": "结构配筋图",
+      "family": [
+        "结构配筋图",
+        "结构图"
+      ],
+      "oov": false,
+      "source": "F:\\BaiduNetdiskDownload\\...\\30070062\\别墅建筑（aspose CONVERT → dxf_prepare）",
+      "notes": "证据中：强命中仅『平面图×6』，但弱命中呈压倒性结构特征（梁×242/柱×235/基础×146/板×123/钢筋×51）；图层『次梁__虚线/板底钢筋标注/支座钢筋』= 典型梁板配筋标注层。",
+      "provenance": "external",
+      "provenance_evidence": "★结构指纹判定：$ACADVER=AC1018（非 ezdxf 默认 AC1024/AC1027/AC1032）；实体 13221 ≥ 1000；另 101 图层/13221 实体；$LASTSAVEDBY 被格式转换（aspose CONVERT）抹除"
+    },
+    {
+      "file": "20 别墅_结构图.dxf",
+      "type": "结构图",
+      "family": [
+        "结构图",
+        "结构配筋图"
+      ],
+      "oov": false,
+      "source": "F:\\BaiduNetdiskDownload\\...\\30070062\\别墅建筑（aspose CONVERT → dxf_prepare）",
+      "notes": "用户决策：取上位类『结构图』。依据：『平面图×20』与『配筋图×10』并存，弱命中 梁132/结构50/基础48/配筋46/钢筋44/柱42/板42 覆盖面广；文字为结构总说明 + 『JL-10基础梁剖面』『%%1308@150双层双向』『钢筋锚固长度应满足40d』，含基础/梁/板/柱多种构件。",
+      "provenance": "external",
+      "provenance_evidence": "★结构指纹判定：$ACADVER=AC1015（非 ezdxf 默认 AC1024/AC1027/AC1032）；实体 9295 ≥ 1000；另 51 图层/9295 实体；$LASTSAVEDBY 被格式转换（aspose CONVERT）抹除"
+    },
+    {
+      "file": "21 别墅_透视图.dxf",
+      "type": null,
+      "family": [],
+      "oov": true,
+      "source": "F:\\BaiduNetdiskDownload\\...\\30070062\\别墅建筑（aspose CONVERT → dxf_prepare）",
+      "notes": "3D 效果图（透视图）→ 34 类词表内无对应类别，真值 OOV。图层仅 3 个、实体 13786、文字 0 条。★用途：检验『该弃权时是否弃权』—— 系统目前 read() 低置信返回占位符『未识别』而非空值，等于对任何输入都给答案。",
+      "provenance": "external",
+      "provenance_evidence": "★结构指纹判定：$ACADVER=AC1015（非 ezdxf 默认 AC1024/AC1027/AC1032）；实体 13786 ≥ 1000；另 3 图层/13786 实体；$LASTSAVEDBY 被格式转换（aspose CONVERT）抹除"
+    },
+    {
+      "file": "22 别墅_鸟瞰图.dxf",
+      "type": null,
+      "family": [],
+      "oov": true,
+      "source": "F:\\BaiduNetdiskDownload\\...\\30070062\\别墅建筑（aspose CONVERT → dxf_prepare）",
+      "notes": "3D 效果图（鸟瞰图）→ 真值 OOV。图层仅 3 个、实体 11147、文字 0 条。同上，用于检验弃权能力。",
+      "provenance": "external",
+      "provenance_evidence": "★结构指纹判定：$ACADVER=AC1015（非 ezdxf 默认 AC1024/AC1027/AC1032）；实体 11147 ≥ 1000；另 3 图层/11147 实体；$LASTSAVEDBY 被格式转换（aspose CONVERT）抹除"
+    },
+    {
+      "file": "23 别墅_三维模型.dxf",
+      "type": null,
+      "family": [],
+      "oov": true,
+      "source": "F:\\BaiduNetdiskDownload\\...\\30070062\\别墅建筑（aspose CONVERT → dxf_prepare）",
+      "notes": "3D 网格模型 → 真值 OOV。修复 ⑤（66=1 判据）后才可读：277 实体 / 35 图层、无文字。★它的图层数(35)同时是结构指纹并联条件『图层≥20』的实测样本。",
+      "provenance": "external",
+      "provenance_evidence": "★结构指纹判定：$ACADVER=AC1015（非 ezdxf 默认 AC1024/AC1027/AC1032）；图层 35 ≥ 20；另 35 图层/277 实体；$LASTSAVEDBY 被格式转换（aspose CONVERT）抹除"
+    },
+    {
+      "file": "24 别墅_E门窗.dxf",
+      "type": null,
+      "family": [],
+      "oov": true,
+      "source": "F:\\BaiduNetdiskDownload\\...\\30070062\\别墅建筑（aspose CONVERT → dxf_prepare）",
+      "notes": "用户决策：标 OOV。内容确实是门窗表 + 门窗大样（彩铝平开窗/2050/C0820/BYC0905/百叶通风口），但系统 34 类词表内【没有『门窗图』这一类】—— 硬归入节点大样图会污染真值。★需 recover 模式读取。",
+      "provenance": "external",
+      "provenance_evidence": "★结构指纹判定：$ACADVER=AC1015（非 ezdxf 默认 AC1024/AC1027/AC1032）；实体 11009 ≥ 1000；另 23 图层/11009 实体；$LASTSAVEDBY 被格式转换（aspose CONVERT）抹除"
     }
   ],
   "updated": "2026-09-12",
