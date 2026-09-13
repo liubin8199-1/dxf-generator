@@ -192,6 +192,14 @@ class BudgetGenerator:
         for nm, v in items:
             L.append("| %s | %.2f | %.1f%% |" % (nm, v, v / b.total * 100 if b.total else 0))
         L.append("| **合计** | **%.2f** | 100%% |" % b.total)
+        L += ["", "### 隐性假设说明（非精确值，仅供判断估算口径）"]
+        labor_pct = b.labor_cost / b.total * 100 if b.total else 0
+        L.append("- 人工费 = %.0f m² × LABOR_PER_SQM(%.0f 元/m²) = %.0f 元，占总造价 %.1f%%；"
+                 "反算 ≈%.1f 工日/m²（按经验工日单价 310 元/工日估算，工日数未经定额校准）。"
+                 % (b.area, LABOR_PER_SQM, b.labor_cost, labor_pct, LABOR_PER_SQM / 310.0))
+        L.append("- 机械费 = 材料费 %.0f 元 × EQUIPMENT_RATE(%.0f%%) = %.0f 元；"
+                 "按固定比例计取，未按工种区分机械台班。"
+                 % (b.material_cost, EQUIPMENT_RATE * 100, b.equipment_cost))
         L += ["", "> ⚠️ 本表为方案阶段数量级估算，单价与含量均为经验系数，"
                   "不能作为招标控制价/合同价/结算依据。正式造价须由注册造价工程师编制。", ""]
         with open(path, "w", encoding="utf-8") as f:
