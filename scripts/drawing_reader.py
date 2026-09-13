@@ -676,6 +676,64 @@ def set_abstain_thresholds(conf: Optional[float] = None,
     return ABSTAIN_CONF_THRESHOLD, ABSTAIN_MARGIN_THRESHOLD
 
 
+# ============================================================
+# P0-1 修法①：图例/设备标注噪声过滤（不参与图纸类型打分）
+# ============================================================
+# 图例表（机电图例/消防图例/开关图例…）与图例内的设备标注（火警警铃…）
+# 属于"图例区"，不是图名，不应参与类型关键词打分。
+# 实测：5 张非火灾报警图因 blob 含"火警警铃"（图例设备标注）被误判为火灾报警图；
+#       同理"电气"⊂"机电图例"、"配电"⊂"配电箱" 会把无关图喂成电气图。
+_LEGEND_MARKERS = ("图例",)
+
+# 图名级后缀：关键词须以这些后缀结尾（或整串等于关键词）才视为"图名里的关键词"，
+# 否则视为设备/材料名里的子串误中（如"火警"⊂"火警警铃"、"电气"⊂"机电图例"）。
+_DRAWING_NAME_SUFFIXES = (
+    "图", "平面图", "剖面图", "立面图", "系统图", "布置图",
+    "详图", "大样图", "配筋图", "总平面图", "施工图",
+    "方案图", "示意图", "图块", "图则",
+)
+
+
+def _is_cjk(ch: str) -> bool:
+    return "一" <= ch <= "鿿"
+
+
+def _is_drawing_name_token(tok: str) -> bool:
+    if not tok:
+        return False
+    return any(tok.endswith(s) for s in _DRAWING_NAME_SUFFIXES)
+
+
+def _max_cjk_token(text: str, start: int, end: int) -> str:
+    """取包含 [start,end) 的最大连续 CJK 片段（图名级匹配的单位）。"""
+    s, e = start, end
+    while s > 0 and _is_cjk(text[s - 1]):
+        s -= 1
+    while e < len(text) and _is_cjk(text[e]):
+        e += 1
+    return text[s:e]
+
+
+def _type_keywords_in_text(text: str, kws) -> List[str]:
+    """返回 text 中'图名级'命中的关键词（过滤设备/材料名里的子串误中）。"""
+    hits = []
+    for k in kws:
+        idx = text.find(k)
+        while idx >= 0:
+            tok = _max_cjk_token(text, idx, idx + len(k))
+            if tok == k or _is_drawing_name_token(tok):
+                if k not in hits:
+                    hits.append(k)
+                break
+            idx = text.find(k, idx + 1)
+    return hits
+
+
+def _clean_texts_for_typing(texts: List[str]) -> List[str]:
+    """去掉图例表文字（含'图例'的标注），其余保留供关键词匹配。"""
+    return [c for c in texts if not any(m in c for m in _LEGEND_MARKERS)]
+
+
 def score_drawing_types(layer_names: List[str],
                         texts: List[str],
                         filename: str = "") -> Dict[str, float]:
@@ -691,7 +749,7 @@ def score_drawing_types(layer_names: List[str],
        （实测严格正确会从 3/26 虚增到 9/26）。
     """
     score: Dict[str, float] = defaultdict(float)
-    blob = " ".join(texts)
+    blob = " ".join(_clean_texts_for_typing(texts))
     fname = filename or ""
 
     # 1) 文件名（最强信号）
@@ -700,9 +758,9 @@ def score_drawing_types(layer_names: List[str],
         if hit:
             score[dtype] += 0.8
 
-    # 2) 图内文字（长关键词更可靠）
+    # 2) 图内文字（长关键词更可靠；仅图名级匹配，过滤图例/设备标注子串误中）
     for dtype, kws in TYPE_BY_KEYWORDS:
-        hit = [k for k in kws if k in blob]
+        hit = _type_keywords_in_text(blob, kws)
         if hit:
             score[dtype] += 0.7 if max(len(k) for k in hit) >= 4 else 0.5
 
@@ -731,7 +789,7 @@ def infer_drawing_type_ex(layer_names: List[str],
     """
     evidence: List[str] = []
     fname = filename or ""
-    blob = " ".join(texts)
+    blob = " ".join(_clean_texts_for_typing(texts))
 
     # 证据（保留原有可读格式，便于人工核对"凭什么这么判"）
     for dtype, kws in TYPE_BY_KEYWORDS:
@@ -739,7 +797,7 @@ def infer_drawing_type_ex(layer_names: List[str],
             hit = [k for k in kws if k in fname]
             if hit:
                 evidence.append("%s ← 文件名「%s」" % (dtype, "、".join(hit)))
-        hit = [k for k in kws if k in blob]
+        hit = _type_keywords_in_text(blob, kws)
         if hit:
             evidence.append("%s ← 图内文字「%s」" % (dtype, "、".join(hit[:3])))
     lset = set(layer_names)
